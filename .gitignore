@@ -205,3 +205,21 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.next/
+.npm
+
+# Uploads and generated output files
+backend/uploads/
+backend/outputs/
+*.csv
+
+# Dev container logs
+.devcontainer/.log
+
+# OS
+.DS_Store
+Thumbs.db
