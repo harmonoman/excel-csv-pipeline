@@ -1,3 +1,2 @@
 # test placeholder for pytest to recognize the tests directory
-def test_intentional_failure():
-    assert 1 == 2
+# Tests will be added per ticket following TDD workflow
