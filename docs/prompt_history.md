@@ -403,3 +403,24 @@ Please do a full review of this project with the MVP path in mind as our immedia
     - Strengthened test-driven development discipline across the project
     - Reduced risk of scope creep while reinforcing MVP-focused execution
 ---
+
+### Prompt ID: P-006
+- **Author:** Mark  
+- **Target:** Claude
+- **Purpose:** Ticket classification and documentation guidance
+#### Prompt
+```
+Based on what you now know,  please review this next ticket in the T0 epic.  Does it also belong in the input_contract.md file or should this be it's own thing?:
+
+<T0-3 - Sample file validation>
+
+Please put on your senior project manager hat: given where we are in the project should we create a placeholder file with a description of it's purpose and a plan for when it should be updated?
+```
+- **Summary of Response:**
+    - Evaluated whether <T0-3 - Sample file validation> fits within input_contract.md or warrants separate documentation
+    - Recommended creating a placeholder file capturing purpose, validation rules, and update plan
+    - Advised on maintaining clear linkage to MVP requirements and future updates
+- **Impact:**
+    - Improved documentation strategy and traceability for sample file validation
+    - Prevented potential ambiguity in input expectations
+    - Provided a structured path for future updates without blocking current development
