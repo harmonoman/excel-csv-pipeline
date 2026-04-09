@@ -424,3 +424,39 @@ Please put on your senior project manager hat: given where we are in the project
     - Improved documentation strategy and traceability for sample file validation
     - Prevented potential ambiguity in input expectations
     - Provided a structured path for future updates without blocking current development
+---
+
+### Prompt ID: P-007
+- **Author:** Mark  
+- **Target:** Claude  
+- **Purpose:** Dev container setup review and code validation
+#### Prompt
+```
+ok moving onto this epic:
+
+[ ] T1-1 - Dev container + uv scaffold
+[ ] T1-2 - Github Action CI pipeline
+[ ] T1-3 - mapping.json config skeleton
+
+let's focus on this first ticket:
+
+T1-1 - Dev container + uv scaffold
+
+<ticket details>
+
+As a senior data engineer please walk through the steps and generate the proper files needed (ie - Dockerfile, devcontainer.json, docker-compose.yml)
+
+(Claude generates code)
+
+Please take on the role of senior data engineer and perform a code review on these files that has been generated for the Dev container and uv setup ticket
+```
+
+- **Summary of Response:**
+    - Reviewed Dockerfile, devcontainer.json, and docker-compose.yml for correctness and best practices
+    - Validated Python environment, dependency management with uv, and container reproducibility
+    - Checked alignment with project structure and TDD workflow
+    - Identified any potential improvements, such as layer caching, security settings, or volume mounting
+- **Impact:**
+    - Ensured dev container setup is production-ready and repeatable
+    - Reduced risk of environment inconsistencies for team development
+    - Provided actionable feedback to refine scaffold and maintain alignment with MVP objectives
