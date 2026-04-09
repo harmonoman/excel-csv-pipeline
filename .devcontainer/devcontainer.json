@@ -1,0 +1,22 @@
+{
+  "name": "excel-csv-pipeline",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspace/backend/.venv/bin/python",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "postCreateCommand": "cd /workspace/backend && uv sync --dev && echo 'source /workspace/backend/.venv/bin/activate' >> ~/.bashrc",
+  "remoteUser": "appuser"
+}
