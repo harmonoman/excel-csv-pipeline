@@ -705,3 +705,269 @@ Begin.
     - Reinforced TDD and data validation as critical pillars of the project
     - Ensured CI setup remains lightweight while still production-minded
 ---
+
+### Prompt ID: P-011
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for config-driven mapping system (MVP + TDD)
+#### Prompt
+```
+ok moving onto T1-3 - mapping.json config skeleton: 
+
+Description 
+Create app/config/mapping.json with initial column alias map. 
+Document the format. 
+Loader utility reads and validates config on startup. 
+
+Acceptance criteria 
+Config loads without error on app start Missing required keys raises a clear startup error At least 3 aliases per target field seeded Config includes header_scan_rows integer key, raises startup error if missing or non-integer. 
+
+Mapping seeds (confirmed from real source data) 
+first_name, fname, first → First 
+lastname, last_name, lname, last → Last 
+address1, address, addr → Address1 
+city → City 
+st, state, state_code → State 
+zip, zip_code, zipcode → Zip 
+giftdate, gift_date, donationdate, donation_date, date → DonationDate 
+amount, donationamount, donation_amount, gift_amount → DonationAmount 
+
+Assumptions 
+Additional aliases will be added as new source formats are introduced All alias matching is case-insensitive (normalization handled before lookup) header_scan_rows defaults to 20 if not overridden, but must be explicitly present in config 
+
+Test plan 
+Unit test: valid config loads correctly and all required keys are present 
+Unit test: malformed config (missing header_scan_rows) raises ValueError with descriptive message 
+Unit test: missing canonical field (e.g. no entry for Last) raises ValueError on startup 
+Unit test: confirm all seeded aliases are present and correctly mapped 
+
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan
+```
+
+- **Summary of Response:**Generated a structured Claude prompt for implementing a config-driven column mapping system
+    - Enforced strict schema validation, startup checks, and deterministic mapping behavior
+    - Included explicit alias mappings for all required donor data fields
+    - Required TDD-based implementation with unit tests for validation, loading, and error handling
+- **Impact:**
+    - Established a robust configuration backbone for data normalization
+    - Ensured extensibility for future data source formats via alias mapping
+    - Strengthened system reliability by enforcing startup validation and fail-fast behavior
+---
+
+### Prompt ID: P-012
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Strict TDD-driven config mapping system implementation prompt
+#### Prompt
+```
+# 🧠 Claude Code Prompt: T1-3 Mapping JSON Config Skeleton (MVP)
+
+You are acting as a **Lead Data Engineer** implementing T1-3 for the Donor Bureau Excel → CSV ingestion pipeline.
+
+This system is a **strict schema enforcement data pipeline** that transforms inconsistent Excel workbooks into a clean, warehouse-ready dataset.
+
+---
+
+## 🎯 Ticket Goal
+
+Create a **configuration-driven column mapping system** using:
+
+
+app/config/mapping.json
+
+
+This file defines:
+
+* Canonical field names
+* Alias mappings from inconsistent Excel source columns
+* Header detection configuration
+
+You must also implement a **loader utility that validates and loads this config at application startup**.
+
+---
+
+## ⚙️ Existing System Context
+
+We already have:
+
+* Python 3.12 dev container
+* `uv` dependency management
+* FastAPI backend
+* pytest-based TDD structure
+* Pipeline architecture:
+
+
+parse → map → normalize → validate → split → output
+
+
+This config is foundational to:
+
+* parser logic
+* column mapping engine
+* validation stage consistency
+
+---
+
+## 📌 Required Mapping Schema
+
+Create `mapping.json` with the following structure and seeded aliases:
+
+```json id="cfg1"
+{
+"header_scan_rows": 20,
+"fields": {
+  "First": ["first_name", "fname", "first"],
+  "Last": ["lastname", "last_name", "lname", "last"],
+  "Address1": ["address1", "address", "addr"],
+  "City": ["city"],
+  "State": ["st", "state", "state_code"],
+  "Zip": ["zip", "zip_code", "zipcode"],
+  "DonationDate": ["giftdate", "gift_date", "donationdate", "donation_date", "date"],
+  "DonationAmount": ["amount", "donationamount", "donation_amount", "gift_amount"]
+}
+}
+⚙️ Functional Requirements
+1. Config Loader Utility
+
+Implement a Python utility that:
+
+Loads mapping.json at application startup
+Validates structure strictly
+Raises startup error immediately if invalid
+2. Validation Rules
+
+The loader MUST enforce:
+
+Required Keys
+header_scan_rows must exist
+Must be an integer
+Must default to 20 ONLY if explicitly set (no silent defaults allowed)
+Field Validation
+All canonical fields must exist:
+First
+Last
+Address1
+City
+State
+Zip
+DonationDate
+DonationAmount
+Each canonical field must have:
+At least 1 alias
+Preferably ≥ 3 aliases (as seeded above)
+Alias Rules
+Alias matching is case-insensitive
+Aliases are normalized before use (assume normalization handled elsewhere)
+3. Failure Behavior (Critical)
+
+If config is invalid:
+
+Raise ValueError (or custom ConfigValidationError)
+Provide clear, developer-friendly error message
+Fail FAST at startup (do not continue partial execution)
+
+Example:
+
+Missing required field: Last
+
+or
+
+header_scan_rows must be an integer, got str
+🧪 TDD REQUIREMENTS
+
+You MUST implement using test-driven development:
+
+Required Tests
+Valid config loads successfully
+All fields present
+No exceptions raised
+Missing header_scan_rows
+Raises ValueError with clear message
+Missing canonical field
+e.g. removing "Last"
+Must fail startup validation
+Alias integrity test
+Ensure all seeded aliases are correctly loaded
+Ensure no canonical field has empty alias list
+🧱 Design Constraints (MVP Discipline)
+
+DO:
+
+Keep implementation minimal
+Keep config loader simple and deterministic
+Fail fast on invalid config
+
+DO NOT:
+
+Add environment-specific config layers
+Add schema frameworks (no pydantic unless absolutely necessary)
+Add dynamic config reloading
+Over-engineer plugin systems
+🧠 Why This Matters (Explain in Output)
+
+After implementation, briefly explain:
+
+1. Why config-driven mapping is critical in this pipeline
+Handles inconsistent Excel formats
+Prevents hardcoded parsing logic
+Enables future template expansion
+2. Why strict validation at startup matters
+Prevents silent data corruption
+Ensures pipeline fails fast instead of producing bad CSVs
+3. Why this is foundational to the entire system
+Parser → mapping → validation all depend on this file
+🧪 Acceptance Criteria
+
+Your implementation is complete when:
+
+mapping.json loads without error
+invalid config fails fast at startup
+all tests pass
+all canonical fields are present
+all alias mappings are validated
+system is ready for parser integration (T2-2)
+🚫 Do NOT
+Skip validation logic
+Assume config correctness
+Allow partial loads
+Add unnecessary abstraction layers
+✅ Success Definition
+
+This ticket is successful when:
+
+A developer can change mapping.json and immediately see failures if the config is invalid—without running any pipeline logic.
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Produced a strict MVP-aligned prompt for Claude to implement a config-driven mapping system with startup  validation  
+    - Enforced deterministic schema rules, alias normalization expectations, and fail-fast behavior  
+    - Required full TDD coverage including validation, missing keys, and alias integrity checks  
+    - Positioned config layer as foundational dependency for entire ingestion pipeline  
+
+- **Impact:**
+    - Established robust contract for data normalization and schema enforcement  
+    - Strengthened pipeline reliability by enforcing early failure on invalid config  
+    - Ensured extensibility for future Excel formats while maintaining strict MVP discipline
+---
+
+### Prompt ID: P-013
+- **Author:** Mark
+- **Target:** Claude
+- **Purpose:** Full system review and QA validation with next-step recommendations
+#### Prompt
+```
+In the role of senior data engineer / qa please review all the files, correct and recommend next steps
+```
+
+- **Summary of Response:**
+    - Performed holistic review of existing project files across dev container, CI pipeline, and config-driven mapping system
+    - Identified alignment with MVP architecture and TDD workflow expectations
+    - Flagged potential gaps or inconsistencies in validation, test coverage, or configuration robustness
+    - Provided corrections and recommendations to improve reliability, maintainability, and pipeline correctness
+- **Impact:**
+    - Validated overall system cohesion across multiple epics and tickets
+    - Strengthened confidence in MVP readiness and production-minded design
+    - Produced actionable next steps to guide continued development and reduce architectural drift
+---
