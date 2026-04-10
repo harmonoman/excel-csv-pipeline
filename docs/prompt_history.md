@@ -460,3 +460,248 @@ Please take on the role of senior data engineer and perform a code review on the
     - Ensured dev container setup is production-ready and repeatable
     - Reduced risk of environment inconsistencies for team development
     - Provided actionable feedback to refine scaffold and maintain alignment with MVP objectives
+---
+
+### Prompt ID: P-008
+- **Author:** Mark  
+- **Target:** ChatGPT
+- **Purpose:** CI pipeline necessity evaluation and architectural decision
+#### Prompt
+```
+Moving onto T1-2 - Github Actions CI pipeline: 
+
+Description 
+Create workflow: install uv, run uv sync, run pytest. 
+Trigger on push and PR to main. 
+
+Acceptance criteria 
+PR with failing test shows red CI PR with passing tests shows green CI 
+
+Test plan 
+Push a deliberately failing test, verify CI fails. Fix it, verify CI passes. 
+
+As a metaphorical based senior bootcamp instructor, please start out by explaining why Github Actions is useful for and evaluate if It's truely needed to reach MVP criteria for this project. 
+
+Then take on the role of the senior data engineer and make the case for why we should or should not use Github Actions on this project.
+```
+
+- **Summary of Response:**
+    - Explained GitHub Actions as a tool for automated testing, validation, and enforcing code quality on every push/PR
+    - Evaluated CI as not strictly required for MVP but highly beneficial for maintaining TDD discipline
+    - Argued in favor of including CI early due to low setup cost and high long-term value
+    - Framed decision as balancing speed to MVP vs. quality assurance and scalability
+- **Impact:**
+    - Informed decision to likely include CI despite MVP scope constraints
+    - Reinforced importance of automated testing in maintaining code reliability
+    - Helped align development process with professional engineering practices
+---
+
+### Prompt ID: P-009
+- **Author:** Mark  
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt creation for CI pipeline implementation
+#### Prompt
+```
+Based on that, please create a prompt for Claude to build (as a senior data engineer) this ticket and also walk through it's particular importance in our specific pipeline keep in mind we've built our dev container as that might influence steps involved
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt instructing Claude to implement the GitHub Actions CI pipeline
+    - Included steps for integrating uv, running tests, and aligning with the dev container environment
+    - Emphasized CI’s role in enforcing validation and TDD within the pipeline
+    - Provided context on why CI is critical for ensuring data quality and consistent processing
+- **Impact:**
+    - Enabled seamless delegation of CI implementation to Claude
+    - Ensured CI setup aligns with existing dev container architecture
+    - Strengthened reliability and automation within the development workflow
+---
+
+### Prompt ID: P-010
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** CI pipeline implementation prompt with project-specific justification
+#### Prompt
+```
+# 🧠 Claude Code Prompt: T1-2 GitHub Actions CI Pipeline (MVP)
+
+You are acting as a **Senior Data Engineer** working on the Donor Bureau Excel → CSV pipeline.
+
+Your task is to implement **T1-2: GitHub Actions CI pipeline** and explain its importance in the context of this project.
+
+---
+
+## 🎯 Ticket Context
+
+We are building a **data ingestion pipeline** that:
+
+* Accepts Excel workbooks with multiple sheets
+* Dynamically maps inconsistent column names
+* Enforces a strict schema
+* Rejects invalid rows
+* Outputs a clean CSV for warehouse ingestion
+
+This system is:
+
+* Highly dependent on **data correctness**
+* Sensitive to **silent failures**
+* Built using **test-driven development (pytest + fixtures)**
+
+---
+
+## ⚙️ Current Environment
+
+We already have:
+
+* Dev container using:
+
+  * Python 3.12
+  * `uv` for dependency management
+* `pyproject.toml` with:
+
+  * runtime + dev dependencies
+* Docker + docker-compose setup
+* FastAPI backend
+* pytest configured (`app/tests`)
+
+Important:
+
+* Local development runs inside a **dev container**
+* CI must work **independently of the dev container**
+* Do NOT rely on Docker for CI (keep it simple for MVP)
+
+---
+
+## 📌 Your Tasks
+
+### 1. Create GitHub Actions Workflow
+
+Create a minimal workflow file:
+
+
+.github/workflows/ci.yml
+
+
+The workflow must:
+
+* Trigger on:
+
+  * push to `main`
+  * pull requests to `main`
+* Run on:
+
+  * `ubuntu-latest`
+* Steps:
+
+  1. Checkout repository
+  2. Install Python 3.12
+  3. Install `uv`
+  4. Run `uv sync`
+  5. Run `pytest`
+
+---
+
+### 2. Ensure Compatibility with Project Setup
+
+* Use `uv` (NOT pip)
+* Respect `pyproject.toml` + `uv.lock`
+* Ensure tests run from correct directory (`backend/` if needed)
+* Keep setup minimal and fast
+
+---
+
+### 3. Explain Why CI Matters for THIS Pipeline
+
+Provide a concise explanation tailored to this project:
+
+Focus on:
+
+* Why CI is critical for **data pipelines vs typical apps**
+* Risks of **silent data corruption**
+* How CI supports:
+
+  * mapping logic
+  * validation rules
+  * deterministic outputs
+* Why relying only on local testing is risky
+
+---
+
+### 4. Validate Against Acceptance Criteria
+
+Ensure your solution satisfies:
+
+* Failing tests → CI fails (red)
+* Passing tests → CI passes (green)
+* No unnecessary complexity added
+
+---
+
+### 5. Keep MVP Scope Tight
+
+DO:
+
+* Keep workflow minimal
+* Focus only on testing
+
+DO NOT:
+
+* Add linting
+* Add coverage reports
+* Add Docker builds
+* Add deployment steps
+
+---
+
+## 🧪 Testing Instructions (for developer)
+
+Include a short section explaining how to verify:
+
+1. Add a failing test → push → confirm CI fails
+2. Fix test → push → confirm CI passes
+
+---
+
+## 🧠 Output Format
+
+Provide:
+
+1. `ci.yml` file contents
+2. Brief explanation of key decisions
+3. Why CI is important specifically for THIS pipeline
+4. How to test the pipeline locally and in GitHub
+
+---
+
+## 🚫 Do NOT
+
+* Over-engineer the workflow
+* Add unnecessary steps
+* Assume Docker is used in CI
+* Skip explanation
+
+---
+
+## ✅ Success Criteria
+
+Your output should:
+
+* Be immediately usable
+* Work with existing `uv` + dev container setup
+* Reinforce TDD workflow
+* Align with MVP simplicity
+
+---
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Produced a highly detailed Claude prompt to implement the GitHub Actions CI pipeline
+    - Incorporated strict alignment with existing dev container and uv-based environment
+    - Emphasized data pipeline risks (e.g., silent corruption) to justify CI importance
+    - Defined clear output expectations, acceptance criteria, and testing validation steps
+- **Impact:**
+    - Enabled precise and high-quality CI implementation via Claude
+    - Reinforced TDD and data validation as critical pillars of the project
+    - Ensured CI setup remains lightweight while still production-minded
+---
