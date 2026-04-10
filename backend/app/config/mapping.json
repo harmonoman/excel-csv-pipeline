@@ -1,0 +1,47 @@
+{
+  "header_scan_rows": 20,
+  "fields": {
+    "First": [
+      "first_name",
+      "fname",
+      "first"
+    ],
+    "Last": [
+      "lastname",
+      "last_name",
+      "lname",
+      "last"
+    ],
+    "Address1": [
+      "address1",
+      "address",
+      "addr"
+    ],
+    "City": [
+      "city"
+    ],
+    "State": [
+      "st",
+      "state",
+      "state_code"
+    ],
+    "Zip": [
+      "zip",
+      "zip_code",
+      "zipcode"
+    ],
+    "DonationDate": [
+      "giftdate",
+      "gift_date",
+      "donationdate",
+      "donation_date",
+      "date"
+    ],
+    "DonationAmount": [
+      "amount",
+      "donationamount",
+      "donation_amount",
+      "gift_amount"
+    ]
+  }
+}
