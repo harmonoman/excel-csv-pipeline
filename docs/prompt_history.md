@@ -4811,3 +4811,654 @@ Begin implementation.
     - Strengthens forward compatibility for upcoming validation and schema stages
     - Ensures system stability without introducing regression or scope creep
 ---
+
+### Prompt ID: P-038
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate MVP TDD implementation prompt for T4-1 null/missing field validator
+#### Prompt
+```
+ok now let's move into this Epic: 
+T4-1 - Null / missing field validator 
+T4-2 - Type and value validators 
+T4-3 - Row splitter (clean / rejected) 
+T4-4 - System-level error handling 
+
+in our first ticket: 
+
+T4-1 - Null / missing field validator 
+Description 
+validator.py checks every required field for null, empty string, or whitespace-only. 
+Rows failing any check added to rejected df with error reason column. 
+
+Acceptance criteria 
+Row missing First → rejected with "Missing: First, Last" 
+Row with all fields → passes through 
+Multiple missing fields → single row, combined reason 
+
+Test plan 
+Unit tests: 
+all fields present, one missing, multiple missing, whitespace-only field. 
+
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+```
+
+- **Summary of Response:**
+    - Generated a strict MVP-focused T4-1 validator prompt defining missing-field detection logic, clean vs rejected dataframe splitting, deterministic error message construction, and mandatory TDD coverage for null, whitespace, and multi-field failure scenarios.
+- **Impact:**
+    - Establishes first concrete validation layer in pipeline (structural integrity enforcement)
+    - Ensures consistent rejection logic for incomplete records before type/value validation (T4-2)
+    - Prevents silent data quality issues from propagating downstream
+    - Reinforces strict separation between validation, transformation, and orchestration layers
+---
+
+### Prompt ID: P-039
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Implement T4-1 missing-field validator enforcing row-level completeness checks in MVP pipeline
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-1 Missing Field Validator (Lead Data Engineer + MVP TDD)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T4-1 — Null / Missing Field Validator**
+
+for the Donor Bureau Excel ingestion pipeline.
+
+---
+
+# 🎯 Role of This Component (CRITICAL CONTEXT)
+
+This is the **first true enforcement layer** in the pipeline.
+
+Pipeline context:
+
+text id="t4flow"
+parse → map → normalize → client_injection → validate → split → enforce_schema → output
+
+This stage is responsible for:
+
+> Identifying incomplete or invalid rows and routing them into a rejected dataset.
+
+---
+
+# ⚠️ CRITICAL CONSTRAINTS
+
+This module MUST:
+
+* ❌ NOT transform data
+* ❌ NOT normalize data
+* ❌ NOT map columns
+* ❌ NOT enforce schema
+* ❌ NOT modify values
+
+It ONLY:
+
+* detects missing values
+* classifies row validity
+* attaches rejection reasons
+
+---
+
+# 🎯 FUNCTIONAL REQUIREMENT
+
+Implement a validation function in:
+
+python id="validator_file"
+validator.py
+
+Example signature:
+
+python id="validate_fn"
+validate_required_fields(df) -> (clean_df, rejected_df)
+
+(or equivalent consistent with your existing pipeline interface)
+
+---
+
+# 📌 REQUIRED VALIDATION RULES
+
+A row is INVALID if ANY required field is:
+
+* null (NaN)
+* empty string ""
+* whitespace-only string "   "
+
+---
+
+# 📋 REQUIRED FIELDS
+
+The validator must enforce presence of:
+
+* First
+* Last
+* Address1
+* City
+* State
+* Zip
+* DonationDate
+* DonationAmount
+* Client
+
+---
+
+# 🚨 REJECTION LOGIC
+
+## 1. Single Missing Field
+
+Example:
+
+First = missing
+
+Rejection reason:
+
+"Missing: First"
+
+---
+
+## 2. Multiple Missing Fields
+
+Example:
+
+First = missing
+Last = missing
+
+Rejection reason:
+
+"Missing: First, Last"
+
+---
+
+## 3. Whitespace Handling
+
+Treat as missing:
+
+* ""
+* "   "
+
+---
+
+## 4. Valid Row
+
+If ALL required fields are present and non-empty:
+
+* row goes to clean_df
+* no rejection reason
+
+---
+
+# 📤 OUTPUT CONTRACT
+
+Return:
+
+python id="output_contract"
+clean_df
+rejected_df
+
+
+Where:
+
+## clean_df
+
+* only valid rows
+* no missing required fields
+
+## rejected_df
+
+* invalid rows
+* includes extra column:
+
+text id="reason_col"
+rejection_reason
+
+---
+
+# 🧪 TEST-DRIVEN DEVELOPMENT REQUIREMENTS
+
+You MUST write tests FIRST or in parallel.
+
+---
+
+## 1. Unit Test — All Fields Present
+
+Input:
+
+* complete row
+
+Expected:
+
+* appears in clean_df
+* not in rejected_df
+
+---
+
+## 2. Unit Test — Single Missing Field
+
+Input:
+
+* missing "First"
+
+Expected:
+
+* rejected_df contains row
+* rejection_reason = "Missing: First"
+
+---
+
+## 3. Unit Test — Multiple Missing Fields
+
+Input:
+
+* missing First + Last
+
+Expected:
+
+* rejection_reason = "Missing: First, Last"
+* correct comma-separated ordering
+
+---
+
+## 4. Unit Test — Whitespace Handling
+
+Input:
+
+* "   " treated as missing
+
+Expected:
+
+* rejected correctly flagged
+
+---
+
+## 5. Unit Test — Mixed Dataset
+
+Input:
+
+* mix of valid + invalid rows
+
+Expected:
+
+* clean + rejected counts sum to input size
+
+---
+
+# ⚙️ IMPLEMENTATION REQUIREMENTS (MVP DISCIPLINE)
+
+DO:
+
+* use vectorized pandas operations where possible
+* keep logic simple and explicit
+* ensure deterministic behavior
+
+---
+
+DO NOT:
+
+* modify values (no normalization here)
+* change schema structure
+* drop columns other than classification split
+* introduce business logic
+* depend on upstream assumptions beyond required fields
+
+---
+
+# 🧠 DESIGN PRINCIPLE
+
+This stage is:
+
+> “Row classification only — not transformation, not interpretation.”
+
+---
+
+# ⚠️ COMMON FAILURE MODES TO AVOID
+
+* treating NaN inconsistently across string/numeric fields
+* forgetting whitespace-only cases
+* incorrect concatenation of rejection reasons
+* modifying input DataFrame instead of copying
+* leaking invalid rows into clean_df
+
+---
+
+# 🧪 EDGE CASES TO CONSIDER
+
+* completely empty row
+* row with all whitespace values
+* mixture of NaN and empty strings
+* single-column missing vs multi-column missing
+* large dataset performance (vectorization preferred)
+
+---
+
+# 📊 OUTPUT VALIDATION REQUIREMENTS
+
+Ensure:
+
+* clean_df + rejected_df row counts = input row count
+* no row appears in both outputs
+* rejection_reason always present in rejected_df
+* clean_df has ZERO nulls in required fields
+
+---
+
+# 🚫 DO NOT
+
+* perform type validation (T4-2 responsibility)
+* perform schema enforcement (T5-6 responsibility)
+* modify or enrich data values
+* introduce pipeline orchestration logic
+
+---
+
+# ✅ SUCCESS CRITERIA
+
+This ticket is complete when:
+
+* all required field null/empty detection works correctly
+* rejection reasons are accurate and deterministic
+* all unit tests pass
+* no clean rows contain missing required fields
+* pipeline remains stable and unchanged upstream/downstream
+
+---
+
+# 🧠 FINAL NOTE
+
+This validator is the **first enforcement gate** in your system.
+
+Its correctness ensures:
+
+> downstream analytics are not polluted by incomplete donor records.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Generated a strict MVP-aligned T4-1 missing-field validator prompt defining row-level completeness checks, deterministic rejection reasoning, and clean vs rejected dataframe splitting, with mandatory TDD coverage and strict separation from type validation and schema enforcement stages.
+- **Impact:**
+    - Establishes first data quality enforcement gate in the pipeline
+    - Prevents incomplete records from propagating into downstream validation and analytics stages
+    - Ensures deterministic, test-driven classification logic for missing fields
+    - Reinforces strict separation between validation, transformation, and schema enforcement responsibilities
+---
+
+### Prompt ID: P-040
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Production-grade QA review of T4-1 missing-field validator for data integrity and pipeline safety
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-1 QA / Senior Test Engineer Review
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer reviewer**.
+
+Your task is to perform a **strict, production-style code review** of the implementation for:
+
+> **T4-1 — Null / Missing Field Validator**
+
+This is a **critical data quality gate** in the Donor Bureau pipeline.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Verify that the implementation correctly:
+
+* identifies missing required fields
+* correctly classifies rows into clean vs rejected
+* produces deterministic rejection reasons
+* preserves data integrity (no accidental mutation or leakage)
+
+---
+
+# 📌 WHAT YOU ARE REVIEWING
+
+You are reviewing the code in:
+
+text id="validator_location"
+validator.py
+
+and its associated tests.
+
+---
+
+# ⚠️ REVIEW PHILOSOPHY
+
+This is NOT a style review.
+
+This is a:
+
+> “Would this break production data integrity in a real donor ingestion system?”
+
+review.
+
+---
+
+# 🧪 CORE FUNCTIONAL REQUIREMENTS CHECK
+
+You MUST verify:
+
+## 1. Missing Field Detection
+
+Confirm correct handling of:
+
+* null / NaN values
+* empty strings ""
+* whitespace-only strings "   "
+
+✔ These must ALL be treated as missing
+
+---
+
+## 2. Required Fields Enforcement
+
+Ensure validator checks ALL required fields:
+
+* First
+* Last
+* Address1
+* City
+* State
+* Zip
+* DonationDate
+* DonationAmount
+* Client
+
+---
+
+## 3. Rejection Logic Correctness
+
+Verify:
+
+### Single missing field:
+
+* `"Missing: First"`
+
+### Multiple missing fields:
+
+* `"Missing: First, Last"`
+
+✔ Ensure:
+
+* comma separation is correct
+* ordering is deterministic (IMPORTANT)
+* no extra spaces or formatting drift
+
+---
+
+## 4. Data Integrity Guarantees
+
+Confirm:
+
+* clean_df contains ONLY valid rows
+* rejected_df contains ONLY invalid rows
+* NO row appears in both outputs
+* NO row is silently dropped
+
+---
+
+## 5. Rejection Column Integrity
+
+Ensure:
+
+* rejected_df includes `rejection_reason`
+* field is always populated (never null/empty)
+
+---
+
+## 6. Pandas Safety Review
+
+Check for common issues:
+
+* mutation of input DataFrame
+* chained assignment warnings
+* accidental view vs copy bugs
+* inconsistent handling of NaN vs empty string
+* row-wise iteration where vectorization should be used
+
+---
+
+# 🧪 TEST COVERAGE REVIEW
+
+You MUST evaluate test completeness:
+
+## Required tests:
+
+### ✔ All valid row
+
+* goes to clean_df
+
+### ✔ Single missing field
+
+* correct rejection reason
+
+### ✔ Multiple missing fields
+
+* combined deterministic message
+
+### ✔ Whitespace-only fields
+
+* treated as missing
+
+### ✔ Mixed dataset
+
+* row counts match input exactly
+
+---
+
+# 🚨 RED FLAGS (FAIL REVIEW IF PRESENT)
+
+Immediately flag if you see:
+
+* missing whitespace handling
+* inconsistent NaN handling
+* non-deterministic rejection reason ordering
+* use of iterrows for core logic without justification
+* mutation of input df
+* dropped rows without explicit classification
+* silent failures
+
+---
+
+# 📊 INTEGRATION EXPECTATIONS
+
+Ensure alignment with pipeline:
+
+text id="pipeline_context"
+parse → map → normalize → validate (T4-1) → split → enforce_schema → output
+
+T4-1 must NOT:
+
+* normalize
+* transform
+* cast types
+* enforce schema rules
+
+---
+
+# 🧠 SYSTEM THINKING CHECK
+
+Evaluate whether this validator correctly serves as:
+
+> the first enforcement gate for data completeness
+
+Ask:
+
+* Would bad donor records slip through?
+* Would good records be incorrectly rejected?
+* Is behavior deterministic across runs?
+
+---
+
+# 🧪 EDGE CASE VALIDATION
+
+Confirm handling of:
+
+* completely empty rows
+* partially filled rows
+* numeric vs string null inconsistencies
+* mixed whitespace + NaN columns
+* very large datasets (performance considerations)
+
+---
+
+# 📋 OUTPUT FORMAT
+
+Return your review in this structure:
+
+## 1. Executive Summary
+
+* PASS / FAIL / PASS WITH RISKS
+
+## 2. Critical Issues (if any)
+
+* must-fix correctness problems
+
+## 3. Data Integrity Risks
+
+* subtle pipeline risks
+
+## 4. Test Coverage Gaps
+
+* missing or weak tests
+
+## 5. Edge Case Findings
+
+* unhandled scenarios
+
+## 6. Final Verdict
+
+* ready for T4-2 OR blocked
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is a **data correctness gate**, not a code style review.
+
+If this validator is wrong:
+
+> every downstream analytics system becomes unreliable.
+
+Be strict.
+Be deterministic.
+Be production-minded.
+
+---
+
+Begin review.
+
+```
+
+- **Summary of Response:**
+    - Generated a strict production-grade QA review prompt for T4-1 missing-field validator focusing on data integrity, deterministic rejection logic, and safe classification of clean vs rejected rows, with emphasis on real-world ingestion reliability and edge-case handling.
+- **Impact:**
+    - Ensures validator correctness before advancing to downstream T4 stages
+    - Protects pipeline integrity by enforcing strict data classification rules
+    - Catches subtle production risks like NaN/whitespace misclassification and row leakage
+    - Reinforces deterministic, test-driven validation behavior in early enforcement layer
+---
