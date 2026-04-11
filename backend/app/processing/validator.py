@@ -41,6 +41,7 @@ def validate_rows(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     reasons = []
  
+    # TODO T4-1: replace iterrows() with vectorized validation — iterrows() is O(n) Python loop
     for _, row in df.iterrows():
         row_reasons = []
         for field in REQUIRED_FIELDS:

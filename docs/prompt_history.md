@@ -971,3 +971,3843 @@ In the role of senior data engineer / qa please review all the files, correct an
     - Strengthened confidence in MVP readiness and production-minded design
     - Produced actionable next steps to guide continued development and reduce architectural drift
 ---
+
+### Prompt ID: P-014
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Alignment check between ingestion epics and fixture validation contract
+#### Prompt
+```
+Ok moving into E2- File ingestion: 
+
+T2-1 - FastAPI / upload endpoint 
+T2-2 - Multi-sheet parser 
+
+where are we in relation to our fixture_validation.md file:
+(file contents)
+```
+
+- **Summary of Response:**
+    - Mapped ingestion tickets (FastAPI upload endpoint + multi-sheet parser) against existing fixture validation rules
+    - Assessed whether current implementation assumptions align with validation contract requirements
+    - Identified dependencies between ingestion layer and fixture-based test data expectations
+    - Highlighted potential gaps in enforcing validation rules during file parsing and upload flow
+- **Impact:**
+    - Ensured ingestion design remains consistent with predefined validation standards
+    - Strengthened dependency awareness between upload, parsing, and validation layers
+    - Helped prevent drift between test fixtures and actual pipeline behavior
+---
+
+### Prompt ID: P-015
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for FastAPI upload endpoint with QA constraints
+#### Prompt
+```
+Please take this senior project manager evaluation and pass a prompt to Claude as a senior data engineer to take the contradictions into account by consulting your prompt and advising / generating the necessary code to accomplish the first ticket while keeping our test based MVP front of mind:
+
+T2-1 - FastAPI / upload endpoint:
+
+Description
+POST /upload accepts multipart .xlsx. Validates extension and MIME type. Saves to temp dir. Returns 400 on non-xlsx.
+
+Acceptance criteria
+Valid .xlsx → 200 + processing starts
+.csv upload → 400 with descriptive error
+Empty file → 400
+
+Test plan
+pytest with httpx test client. Three fixtures: valid xlsx, wrong extension, empty file.
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt for Claude to implement a FastAPI /upload endpoint under strict TDD constraints
+    - Included explicit validation rules for file type, MIME checking, and empty file handling
+    - Ensured consistency between acceptance criteria and test plan using pytest + httpx
+    - Emphasized MVP scope and prevention of over-engineering while supporting future ingestion pipeline expansion
+- **Impact:**
+    - Enabled direct implementation path for file ingestion entry point
+    - Strengthened alignment between QA expectations and backend implementation
+    - Reinforced strict validation behavior as first gate in the data pipeline
+---
+
+### Prompt ID: P-016
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Strict MVP FastAPI upload endpoint implementation prompt (decoupled ingestion layer)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T2-1 FastAPI Upload Endpoint (MVP + Future-Proof)
+
+You are acting as a **Senior Data Engineer** implementing T2-1 for the Donor Bureau Excel ingestion pipeline.
+
+This system is a **test-driven, schema-enforcing data pipeline** that ingests Excel workbooks and ultimately produces a clean, warehouse-ready CSV.
+
+---
+
+# ⚠️ Important Architectural Context (Read First)
+
+We are currently in an **early ingestion stage (E2 - File Ingestion)**.
+
+We have:
+
+* Dev container (Python 3.12 + uv)
+* FastAPI backend
+* pytest framework
+* Mapping config system (T1-3 complete or in progress)
+* Input contract defined (authoritative schema rules)
+
+We do NOT yet have:
+
+* Completed fixture validation system (T7-1 not finished)
+* Verified real-world edge-case dataset coverage
+
+---
+
+## 🚨 Key Engineering Constraint
+
+The fixture validation system is NOT blocking this ticket.
+
+However:
+
+> We must avoid baking in brittle assumptions about Excel structure at this stage.
+
+So:
+
+* T2-1 should be **pure ingestion + validation of file boundary rules only**
+* It must NOT depend on parsing logic or fixture-derived assumptions
+* It must remain stable even as T2-2 parser evolves later
+
+---
+
+# 🎯 Ticket Goal
+
+Implement:
+
+```http id="h7k3ld"
+POST /upload
+
+This endpoint must:
+
+Accept .xlsx files via multipart upload
+Reject invalid files early (before parsing)
+Save valid files to a temporary directory
+Return structured HTTP responses
+📌 MVP Scope (IMPORTANT)
+
+This is NOT a processing endpoint yet.
+
+DO:
+
+Validate file type
+Validate file presence
+Save file
+Return success response placeholder
+
+DO NOT:
+
+Parse Excel sheets
+Apply mapping logic
+Validate rows
+Transform data
+Depend on fixture system
+📥 Input Rules
+Accept:
+.xlsx only
+non-empty file
+valid multipart upload
+Reject with HTTP 400:
+.csv or any non-xlsx file
+empty file upload
+missing file field
+🧪 Required Tests (TDD FIRST)
+
+Using pytest + httpx, implement:
+
+1. Valid XLSX upload
+returns 200
+file is saved to temp directory
+2. Invalid extension (.csv)
+returns 400
+error message clearly states invalid file type
+3. Empty file upload
+returns 400
+error message indicates empty file
+🧱 Implementation Requirements
+FastAPI Endpoint
+Use UploadFile + File(...)
+Validate extension using filename + MIME type (defensive check both)
+
+Store files in:
+
+/tmp/donor-bureau/uploads/
+Ensure unique filenames (timestamp or uuid)
+Response Schema (MVP)
+
+On success:
+
+{
+  "message": "file uploaded successfully",
+  "filename": "<stored_filename>"
+}
+
+On error:
+
+{
+  "error": "<human readable reason>"
+}
+⚙️ Engineering Constraints (Critical)
+1. Keep it minimal
+
+No overengineering:
+
+No background jobs
+No parsing pipeline hooks
+No mapping system integration
+2. Fixture system awareness (IMPORTANT)
+
+You are NOT allowed to assume:
+
+sheet structure
+header position
+column formats
+data validity
+
+This is intentional — those rules belong to T2-2 and beyond.
+
+3. Separation of concerns
+
+This endpoint is ONLY responsible for:
+
+“Is this a valid Excel file we should accept into the system?”
+
+NOT:
+
+“What is inside the Excel file?”
+
+🧪 Test Strategy (TDD Alignment)
+
+Tests should validate:
+
+HTTP status codes
+File rejection behavior
+File persistence
+No parsing logic is invoked
+
+Use:
+
+httpx.AsyncClient or FastAPI TestClient
+temporary directories (tmp_path fixture preferred`
+🧠 Why This Ticket Matters (Explain After Implementation)
+
+After coding, explain briefly:
+
+1. Why upload validation is isolated from parsing
+prevents coupling ingestion with business logic
+avoids brittle assumptions about Excel structure
+2. Why this design supports future T2-2 parser
+parser can evolve independently
+upload layer remains stable
+3. Why fixture validation is NOT needed here yet
+this layer only validates file boundary conditions
+fixtures matter only when interpreting content (T2-2+)
+🚫 DO NOT
+Do not parse Excel files
+Do not reference mapping.json
+Do not validate column structure
+Do not assume header formats
+Do not introduce fixture dependency
+Do not overbuild abstractions
+✅ Success Criteria
+
+This ticket is complete when:
+
+All 3 tests pass
+Invalid files are rejected cleanly
+Valid files are stored safely
+Endpoint is minimal and future-proof
+No coupling to downstream pipeline logic exists
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Produced a tightly constrained MVP prompt for implementing a FastAPI `/upload` endpoint using strict TDD principles  
+    - Enforced clear separation between ingestion (file boundary validation) and downstream parsing logic  
+    - Defined explicit test cases for valid, invalid, and empty file uploads using pytest + httpx  
+    - Emphasized decoupling from fixture system and mapping logic to prevent premature architectural coupling  
+- **Impact:**
+    - Established clean architectural boundary for ingestion layer (T2-1)  
+    - Prevented early over-engineering and coupling to future parsing/validation systems  
+    - Ensured scalable foundation for upcoming T2-2 multi-sheet parsing stage
+---
+
+### Prompt ID: P-017
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for QA-focused code review
+#### Prompt
+```
+Now please generate a prompt for Claude directing it do a code review of what it just generated as senior level testers and qa
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt instructing Claude to perform a QA-focused code review
+    - Emphasized validation of TDD adherence, test coverage, and edge case handling
+    - Directed focus toward failure modes, error handling, and alignment with acceptance criteria
+    - Included expectation for actionable feedback and recommended improvements
+- **Impact:**
+    - Introduced formal QA review step into development workflow
+    - Strengthened code reliability and test completeness before progression
+    - Reinforced discipline of validating implementation against original ticket requirements
+---
+
+### Prompt ID: P-018
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Comprehensive QA and test review prompt for upload endpoint
+#### Prompt
+```
+# 🧠 Claude Code Prompt — Senior QA / Test Review (T2-1 Upload Endpoint)
+
+You are acting as a **Senior QA Engineer + Senior Data Engineer** reviewing the implementation of:
+
+> **T2-1 — FastAPI /upload endpoint**
+
+Your role is to perform a **deep, critical code review** focused on:
+
+* correctness
+* test coverage
+* edge cases
+* failure handling
+* alignment with MVP architecture
+
+---
+
+# 🎯 Review Objectives
+
+You must evaluate BOTH:
+
+1. **Application Code**
+2. **Test Suite (pytest + httpx)**
+
+Your goal is to determine:
+
+> “Is this implementation safe, correct, and production-ready for MVP?”
+
+---
+
+# 📌 Context Reminder
+
+This endpoint is intentionally **limited in scope**:
+
+It should ONLY:
+
+* accept `.xlsx` uploads
+* validate file presence + type
+* reject invalid uploads
+* store valid files to temp directory
+
+It must NOT:
+
+* parse Excel contents
+* depend on mapping.json
+* assume sheet structure
+* implement any pipeline logic
+
+---
+
+# ⚠️ Critical Constraints to Validate
+
+## 1. Separation of Concerns
+
+* No parsing logic inside endpoint
+* No coupling to future pipeline stages
+* Clean boundary between ingestion and processing
+
+---
+
+## 2. Validation Correctness
+
+Check:
+
+### File validation
+
+* Extension check (.xlsx)
+* MIME type validation (defensive)
+* Case sensitivity handled (e.g. `.XLSX`)
+
+### Empty file handling
+
+* Detects zero-byte file correctly
+
+### Missing file
+
+* Proper FastAPI validation behavior
+
+---
+
+## 3. Error Handling Quality
+
+Evaluate:
+
+* Are error messages clear and actionable?
+* Are HTTP status codes correct?
+* Are failure modes consistent?
+
+Examples:
+
+* `.csv` upload → 400
+* empty file → 400
+* missing file → 422 or 400 (justify choice)
+
+---
+
+## 4. File Handling Safety
+
+Check for:
+
+* Unique filename generation (collision prevention)
+* Safe file writing (no overwrite risk)
+* Directory existence handling
+* No path traversal vulnerabilities
+
+---
+
+## 5. Test Coverage Depth
+
+Critically evaluate tests:
+
+### Required Coverage
+
+* valid `.xlsx` upload
+* invalid extension (.csv)
+* empty file
+
+### Look for Missing Cases
+
+* uppercase extension (`.XLSX`)
+* wrong MIME type but correct extension
+* correct MIME but wrong extension
+* missing file field
+* large file (boundary consideration, not required to implement)
+
+---
+
+## 6. Test Quality (not just presence)
+
+Evaluate:
+
+* Are tests deterministic?
+* Are assertions meaningful?
+* Are failure messages helpful?
+* Are temp directories isolated (e.g. `tmp_path`)?
+* Are tests independent (no shared state)?
+
+---
+
+## 7. Alignment with MVP Philosophy
+
+Ensure:
+
+* No overengineering
+* No unnecessary abstraction
+* No premature pipeline integration
+
+---
+
+## 8. Future Compatibility (T2-2 Parser)
+
+Evaluate whether current design:
+
+* Allows parser to plug in cleanly later
+* Avoids needing refactor when parsing is introduced
+* Keeps endpoint stable as system evolves
+
+---
+
+# 🧪 Output Requirements
+
+Provide your review in this structure:
+
+---
+
+## 1. ✅ What Was Done Well
+
+* Highlight strong design decisions
+* Note alignment with MVP + TDD
+
+---
+
+## 2. ⚠️ Issues / Risks Identified
+
+Categorize by severity:
+
+### 🔴 Critical (must fix before merge)
+
+### 🟡 Medium (should fix soon)
+
+### 🟢 Minor (nice to improve)
+
+---
+
+## 3. 🧪 Test Coverage Gaps
+
+* Missing test scenarios
+* Weak assertions
+* Edge cases not covered
+
+---
+
+## 4. 🔧 Suggested Improvements
+
+* Specific, actionable fixes
+* Keep within MVP scope
+
+---
+
+## 5. 🧠 Final Verdict
+
+Choose one:
+
+* ✅ Ready to merge
+* ⚠️ Merge with fixes
+* ❌ Not ready
+
+Provide reasoning.
+
+---
+
+# 🚫 DO NOT
+
+* Rewrite the entire implementation
+* Introduce new architecture
+* Suggest non-MVP features
+* Over-engineer solutions
+
+---
+
+# ✅ Success Criteria
+
+A strong review will:
+
+* Catch subtle bugs and edge cases
+* Strengthen test reliability
+* Ensure strict separation of concerns
+* Improve production readiness WITHOUT expanding scope
+
+---
+
+Begin review.
+```
+
+- **Summary of Response:**
+    - Created a detailed QA review prompt directing Claude to evaluate both implementation and tests
+    - Structured review criteria around validation, error handling, file safety, and separation of concerns
+    - Included explicit edge cases and test gaps to assess robustness
+    - Defined clear output format with severity-based issue categorization and final merge verdict
+- **Impact:**
+    - Formalized high-quality QA review process before merging critical ingestion logic
+    - Increased likelihood of catching subtle bugs and edge case failures early
+    - Reinforced MVP discipline while ensuring production readiness
+---
+
+### Prompt ID: P-019
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for multi-sheet parser implementation (MVP + TDD)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T2-2 - Multi-sheet parser: 
+
+Description 
+parser.py reads all sheets dynamically using openpyxl, detects the correct header row within each sheet, and normalizes column names. 
+Header detection scans the first N rows (configurable, e.g., 10–20) to identify a valid header row based on matching known column aliases from mapping.json. 
+Each sheet is parsed into a DataFrame, tagged with a _source_sheet column, and all valid sheets are concatenated into a single DataFrame.
+
+Acceptance Criteria 
+All sheets in the workbook are processed dynamically (no hardcoding) 
+Header row is correctly detected even if not in row 1 
+Header detection: 
+- Scan first N rows 
+- Select first row with ≥ 2 mapped columns 
+- Stop immediately (no ranking/scoring) 
+Column names are normalized: 
+lowercase 
+trimmed whitespace 
+_source_sheet column is present for all rows 
+Empty sheets (no data after header) are skipped without error 
+Sheets with no detectable valid header: 
+Are excluded from processing 
+Generate a logged warning (not a silent skip) 
+Final output is a single concatenated DataFrame from all valid sheets 
+Pre-header metadata rows (e.g. client label, review notes) are correctly skipped and do not interfere with header detection 
+
+Assumptions 
+Header row may appear within the first N rows (not guaranteed to be row 1) 
+Each sheet represents a distinct client dataset 
+Sheet names are not hardcoded and are used later for Client field injection 
+Column aliases defined in mapping.json are sufficient to identify headers Workbook size is small enough (<10MB) for in-memory processing 
+
+Test Plan 
+Unit Tests 
+1-sheet workbook with header in row 1 
+1-sheet workbook with header offset (e.g., row 3 or 5) 
+3-sheet workbook with: different schemas per sheet different header row positions 
+Sheet with extra whitespace in headers (e.g., " First Name ") 
+
+Edge Cases 
+Sheet with no data → skipped 
+Sheet with no detectable header → excluded + warning logged 
+Sheet with partial column matches: 
+Below threshold → rejected 
+Above threshold → accepted 
+
+Integration Test 
+Multi-sheet workbook containing multiple template formats: 
+All valid sheets correctly parsed and concatenated 
+_source_sheet correctly reflects origin of each row
+```
+
+- **Summary of Response:**
+    - Generated a detailed Claude prompt for implementing a dynamic multi-sheet Excel parser using openpyxl
+    - Enforced strict header detection logic based on alias matching from mapping.json
+    - Incorporated TDD requirements with unit and integration tests covering varied sheet structures and edge cases
+    - Emphasized MVP simplicity, deterministic behavior, and clear logging for skipped or invalid sheets
+- **Impact:**
+    - Defined core ingestion logic enabling transformation of multi-sheet Excel files into unified datasets
+    - Ensured robustness against inconsistent real-world file formats through configurable header detection
+    - Maintained alignment with MVP scope while preparing system for downstream normalization and validation
+---
+
+### Prompt ID: P-020
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Multi-sheet parser implementation prompt with strict MVP and TDD constraints
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T2-2 Multi-Sheet Parser (MVP + TDD + Future-Safe)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T2-2 — Multi-sheet parser**
+
+for the Donor Bureau Excel → CSV ingestion pipeline.
+
+---
+
+# 🎯 Project Context (Critical)
+
+This is a **data pipeline system**, not a typical web app.
+
+Key properties:
+
+* Input data is **inconsistent and semi-structured**
+* Column names vary across clients
+* Header rows may not be in row 1
+* Workbooks may contain multiple sheets (multiple clients)
+
+---
+
+## ⚠️ Current System State
+
+We have:
+
+* Upload endpoint complete (T2-1)
+* mapping.json config system (T1-3)
+* Input contract defined (source of truth)
+* pytest + TDD framework in place
+
+We do NOT yet have:
+
+* Fully validated fixture library (T7-1 incomplete)
+* Completed fixture validation log
+
+---
+
+## 🚨 Critical Engineering Constraint
+
+You MUST account for this:
+
+> We are implementing the parser BEFORE full fixture validation is complete.
+
+Therefore:
+
+* Build **correct, minimal, contract-aligned logic**
+* Avoid overfitting to hypothetical edge cases
+* Avoid hardcoding assumptions not defined in `input_contract.md`
+* Keep implementation **flexible and test-driven**
+
+---
+
+# 🎯 Ticket Goal
+
+Implement:
+
+```id="parserfile"
+app/parser.py
+
+This module must:
+
+Read all sheets dynamically using openpyxl
+Detect header row per sheet using mapping.json
+Normalize column names
+Convert each valid sheet into a pandas DataFrame
+Add _source_sheet column
+Concatenate all valid sheets into one DataFrame
+⚙️ Functional Requirements
+1. Sheet Processing
+Iterate through ALL sheets dynamically
+No sheet names are hardcoded
+Each sheet processed independently
+2. Header Detection Logic (CORE)
+
+For each sheet:
+
+Scan first N rows (from mapping.json.header_scan_rows)
+Normalize each row’s cell values:
+lowercase
+strip whitespace
+For each row:
+count how many values match known aliases (from mapping.json)
+
+Header row is:
+
+FIRST row with ≥ 2 alias matches
+
+Stop immediately when found
+No ranking or scoring
+3. Metadata Handling
+All rows before detected header are ignored
+These are treated as metadata (e.g., “Prepared for internal review”)
+Must NOT interfere with detection logic
+4. Column Normalization
+
+After header detection:
+
+Normalize column names:
+lowercase
+strip whitespace
+
+Example:
+
+" First Name " → "first name"
+5. DataFrame Construction
+Data starts immediately AFTER header row
+Convert rows into pandas DataFrame
+Add:
+_source_sheet = <sheet_name>
+Sheet name should be preserved as-is (normalization handled later)
+6. Sheet Inclusion Rules
+Include sheet if:
+Header detected
+At least 1 data row exists
+Skip sheet if:
+No header detected → log warning
+Header exists but no data rows → silently skip
+7. Final Output
+Concatenate all valid DataFrames
+Return a single DataFrame
+🧪 TDD REQUIREMENTS (MANDATORY)
+
+You MUST write tests BEFORE implementation.
+
+Required Unit Tests
+1. Single sheet, header in row 1
+Parsed correctly
+Columns normalized
+_source_sheet added
+2. Header offset (row 3 or 5)
+Header correctly detected
+Metadata rows ignored
+3. Multi-sheet workbook
+Different schemas per sheet
+Different header positions
+All valid sheets included
+4. Header whitespace normalization
+" First Name " → normalized correctly
+Edge Case Tests
+5. Sheet with no data
+Skipped without error
+6. Sheet with no detectable header
+Excluded
+Warning logged
+7. Partial column match
+< 2 matches → rejected
+≥ 2 matches → accepted
+Integration Test
+Multi-sheet workbook with mixed templates
+Output is single DataFrame
+_source_sheet correctly assigned
+⚙️ Implementation Constraints (MVP Discipline)
+
+DO:
+
+Use openpyxl
+Use pandas
+Use mapping.json as single source of truth for aliases
+Keep logic simple and deterministic
+
+DO NOT:
+
+Implement column mapping (T3-1 responsibility)
+Inject Client field (T3-3 responsibility)
+Perform validation (T4 responsibility)
+Handle async processing
+Over-engineer abstraction layers
+🧠 Logging Requirements
+Log warning when:
+Sheet has no detectable header
+
+Example:
+
+WARNING: No valid header found in sheet 'Sheet2'
+🧠 Design Principles (CRITICAL)
+1. Parser is NOT validator
+Do not reject rows
+Do not enforce schema completeness
+2. Parser is NOT transformer
+Do not map to canonical field names
+Do not normalize values beyond column names
+3. Parser must be composable
+Output should cleanly feed into T3-1 mapping stage
+🧠 Why This Matters (Explain After Implementation)
+
+Explain briefly:
+
+1. Why header detection is the hardest part of Excel ingestion
+variability across templates
+lack of structure
+2. Why we avoid overfitting before fixture validation
+prevents brittle logic
+allows system to evolve safely
+3. How this parser enables downstream pipeline stages
+mapping
+normalization
+validation
+🚫 DO NOT
+Hardcode sheet names
+Assume header is row 1
+Assume consistent schemas
+Couple parser to mapping/validation stages
+Add unnecessary abstractions
+✅ Success Criteria
+
+This ticket is complete when:
+
+All tests pass
+Header detection works for offset rows
+Multi-sheet parsing works
+Invalid sheets are safely excluded
+Output is a single DataFrame
+Implementation remains simple and adaptable
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Produced a comprehensive Claude prompt for implementing a multi-sheet Excel parser with strict TDD requirements  
+    - Defined deterministic header detection logic driven by mapping.json aliases  
+    - Enforced clear separation between parsing, mapping, and validation responsibilities  
+    - Included extensive unit and integration test scenarios covering real-world inconsistencies  
+
+- **Impact:**
+    - Established core parsing engine for handling messy, multi-sheet Excel inputs  
+    - Ensured flexibility and resilience prior to full fixture validation completion  
+    - Maintained strong alignment with MVP scope while enabling downstream pipeline stages
+--- 
+
+### Prompt ID: P-021
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA review prompt for multi-sheet parser reliability and test coverage
+#### Prompt
+```
+# 🧠 Claude Code Prompt — Senior QA / Test Review (T2-2 Multi-Sheet Parser)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** performing a deep code review of:
+
+> **T2-2 — Multi-sheet parser (parser.py)**
+
+Your responsibility is to evaluate both:
+
+* Implementation correctness
+* Test quality and coverage
+
+---
+
+# 🎯 Review Objective
+
+Determine:
+
+> “Is this parser reliable, testable, and safe to build upon for downstream pipeline stages?”
+
+This is a **high-risk component** of a data pipeline — subtle bugs here will silently corrupt downstream data.
+
+---
+
+# 📌 Context Reminder
+
+This parser must:
+
+* Dynamically read all sheets
+* Detect header rows within first N rows
+* Ignore metadata rows before header
+* Normalize column names
+* Add `_source_sheet`
+* Concatenate valid sheets
+
+It must NOT:
+
+* Perform column mapping (T3-1)
+* Perform validation (T4)
+* Assume perfect data
+* Overfit to unvalidated fixture assumptions
+
+---
+
+# ⚠️ Critical Areas to Evaluate
+
+## 1. Header Detection Logic (HIGHEST RISK)
+
+Evaluate:
+
+* Does it correctly scan ONLY first N rows?
+* Does it stop at FIRST valid match (≥ 2 aliases)?
+* Does it avoid ranking/scoring complexity?
+* Are aliases matched case-insensitively?
+
+Check for bugs like:
+
+* false positives from metadata rows
+* incorrect threshold logic
+* scanning entire sheet instead of N rows
+
+---
+
+## 2. Mapping.json Usage
+
+* Is `header_scan_rows` respected?
+* Are aliases loaded correctly?
+* Is alias matching normalized (lowercase + trimmed)?
+
+---
+
+## 3. Metadata Handling
+
+* Are rows before header truly ignored?
+* Could metadata accidentally be interpreted as header?
+
+Example risk:
+
+
+"Client: Alpha Fund"
+
+
+Should NOT trigger header detection
+
+---
+
+## 4. Column Normalization
+
+Verify:
+
+* lowercase applied
+* whitespace trimmed
+* consistent across all sheets
+
+---
+
+## 5. DataFrame Construction
+
+Check:
+
+* Data starts AFTER header row
+* `_source_sheet` is correctly added
+* Sheet name preserved accurately
+
+---
+
+## 6. Sheet Inclusion / Exclusion Rules
+
+### Correct behavior:
+
+* No header → skip + log warning
+* Header but no data → skip silently
+* Valid sheet → included
+
+Check:
+
+* Are warnings logged properly?
+* Are sheets incorrectly included/excluded?
+
+---
+
+## 7. Concatenation Logic
+
+* Are multiple sheets combined correctly?
+* Are column mismatches handled (pandas default behavior acceptable for MVP)?
+* Is output deterministic?
+
+---
+
+## 8. Separation of Concerns
+
+Ensure:
+
+* No mapping logic present
+* No validation logic present
+* No Client field injection
+* Parser remains composable for T3/T4
+
+---
+
+# 🧪 Test Suite Review
+
+## 1. Required Coverage
+
+Ensure tests exist for:
+
+* header in row 1
+* header offset (row 3–5)
+* multi-sheet parsing
+* whitespace in headers
+* no header → skipped
+* no data → skipped
+* partial match threshold logic
+
+---
+
+## 2. Edge Case Strength
+
+Look for missing tests:
+
+* metadata rows mimicking headers
+* mixed valid + invalid sheets
+* sheets with only 1 matching alias
+* sheets with duplicate column names
+* empty workbook (if handled)
+
+---
+
+## 3. Test Quality
+
+Evaluate:
+
+* Are tests deterministic?
+* Are fixtures realistic?
+* Are assertions strong (not just shape checks)?
+* Is `_source_sheet` explicitly validated?
+
+---
+
+## 4. Fixture Strategy
+
+Even though T7-1 is not complete:
+
+* Are tests simulating realistic Excel structures?
+* Are they aligned with input_contract.md?
+
+---
+
+# ⚠️ Common Failure Patterns to Detect
+
+Actively look for:
+
+* Overfitting to assumed structure
+* Hardcoded column names
+* Header detection too permissive or too strict
+* Silent failures (no logging)
+* Parser doing transformation work prematurely
+
+---
+
+# 🧪 Output Requirements
+
+Provide your review in this structure:
+
+---
+
+## 1. ✅ What Was Done Well
+
+* Strong design choices
+* Alignment with MVP + TDD
+* Clean separation of concerns
+
+---
+
+## 2. 🔴 Critical Issues (Must Fix)
+
+* Bugs or logic flaws
+* Violations of acceptance criteria
+* Anything that risks incorrect parsing
+
+---
+
+## 3. 🟡 Medium Issues (Should Fix Soon)
+
+* Edge case gaps
+* Test weaknesses
+* Minor logic concerns
+
+---
+
+## 4. 🟢 Minor Improvements
+
+* Code clarity
+* Logging improvements
+* Small refactors within MVP scope
+
+---
+
+## 5. 🧪 Test Coverage Gaps
+
+* Missing scenarios
+* Weak assertions
+* Missing edge-case validation
+
+---
+
+## 6. 🔧 Suggested Fixes
+
+* Specific, actionable improvements
+* Keep strictly within MVP scope
+
+---
+
+## 7. 🧠 Final Verdict
+
+Choose one:
+
+* ✅ Ready to merge
+* ⚠️ Merge with fixes
+* ❌ Not ready
+
+Provide reasoning.
+
+---
+
+# 🚫 DO NOT
+
+* Rewrite the entire parser
+* Add new architecture
+* Introduce T3/T4 logic
+* Suggest non-MVP enhancements
+
+---
+
+# ✅ Success Criteria
+
+A strong review will:
+
+* Catch subtle header detection bugs
+* Strengthen test reliability
+* Prevent future pipeline breakage
+* Ensure safe progression to T3 (mapping stage)
+
+---
+
+Begin review.
+```
+
+- **Summary of Response:**
+    - Created a comprehensive QA prompt targeting high-risk parser logic and test coverage
+    - Focused heavily on header detection correctness, metadata handling, and sheet inclusion rules
+    - Included detailed evaluation criteria for both implementation and pytest suite quality
+    - Structured output to prioritize critical issues, test gaps, and merge readiness
+- **Impact:**
+    - Introduced rigorous QA validation for the most complex part of the ingestion pipeline
+    - Reduced risk of silent data corruption from parsing errors
+    - Strengthened readiness for transition into mapping and validation stages
+---
+
+### Prompt ID: P-022
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for column mapping engine (T3-1)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T3-1 - Column mapping engine
+
+# Description
+transformer.py maps source columns to canonical schema using mapping.json.
+Mapping is case-insensitive and alias-driven.
+Missing columns are allowed at this stage and deferred to validation.
+
+# Acceptance Criteria
+- Known aliases map correctly to canonical names
+- Unmapped columns are dropped
+- Missing canonical columns do NOT raise error here
+- Mapping is deterministic and case-insensitive
+
+# Assumptions
+Presence of required fields is NOT guaranteed at mapping stage and must be enforced downstream.
+
+# Test plan
+Unit tests covering:
+- exact match
+- alias match
+- unknown column
+- missing required
+- case-insensitive match
+```
+
+- ***Summary of Response:**
+    - Generated a Claude implementation prompt for a column mapping engine based on alias-driven schema normalization
+    - Defined deterministic mapping rules using mapping.json as the source of truth
+    - Clarified separation of concerns by deferring validation of required fields to downstream stages
+    - Included explicit unit test coverage requirements for mapping behavior and edge cases
+- **Impact:**
+    - Established clean transformation layer between parsing (T2-2) and validation (T4)
+    - Ensured consistent, deterministic column normalization across heterogeneous Excel inputs
+    - Reinforced MVP discipline by separating mapping logic from validation responsibilities
+---
+
+### Prompt ID: P-023
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** T3-1 column mapping engine implementation prompt with strict MVP + TDD separation from validation
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T3-1 Column Mapping Engine (MVP + TDD + Pipeline Discipline)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T3-1 — Column Mapping Engine**
+
+for the Donor Bureau Excel → CSV ingestion pipeline.
+
+---
+
+# 🎯 Project Context (Critical)
+
+This system is a **data pipeline**, not a typical application.
+
+Pipeline flow:
+
+
+parse → map → normalize → validate → split → output
+
+
+You are implementing the **mapping stage**.
+
+---
+
+## ⚠️ Upstream + Downstream Awareness
+
+### Input (from T2-2 parser):
+
+* pandas DataFrame
+* column names are:
+
+  * lowercase
+  * whitespace-trimmed
+* may vary across sheets
+* includes `_source_sheet`
+
+### Output (to T3-2 normalization):
+
+* DataFrame with **canonical column names**
+* unmapped columns removed
+* missing required fields STILL allowed
+
+---
+
+## 🚨 Critical Engineering Constraint
+
+This stage is **NOT responsible for validation**.
+
+That means:
+
+* Missing required columns → ALLOWED
+* Invalid values → ALLOWED
+* Empty fields → ALLOWED
+
+👉 All enforcement happens in **T4 (validators)**
+
+---
+
+# 🎯 Ticket Goal
+
+Implement:
+
+``` id="transformerfile"
+app/transformer.py
+
+This module must:
+
+Map source column names → canonical schema
+Use mapping.json as source of truth
+Drop unmapped columns
+Preserve only mapped canonical fields (+ _source_sheet)
+⚙️ Functional Requirements
+1. Mapping Behavior
+Mapping is alias-driven
+Case-insensitive matching
+Deterministic (same input → same output)
+
+Example:
+
+Source Column	Canonical Output
+first_name	First
+fname	First
+first	First
+2. Column Matching Rules
+Input columns already normalized (lowercase, trimmed)
+Aliases from mapping.json should also be normalized before comparison
+3. Output Schema Behavior
+Only include:
+canonical fields that are present in input
+_source_sheet (must be preserved)
+Drop:
+all unmapped columns
+4. Missing Fields (IMPORTANT)
+
+If a canonical field is NOT present:
+
+DO NOT raise error
+DO NOT create empty column
+Simply omit it
+
+👉 Validation happens later (T4)
+
+5. Duplicate Mapping Handling
+
+If multiple source columns map to the same canonical field:
+
+Example:
+
+first_name + fname both exist
+
+MVP behavior:
+
+Prefer first occurrence (left-to-right)
+Do NOT merge values
+Do NOT raise error
+🧪 TDD REQUIREMENTS (MANDATORY)
+
+You MUST write tests FIRST.
+
+Required Unit Tests
+1. Exact match
+"first" → "First"
+2. Alias match
+"fname" → "First"
+3. Case-insensitive match
+"FNAME" → "First"
+4. Unknown column
+"random_col" → dropped
+5. Missing required field
+e.g. no "Last"
+should NOT error
+simply not present in output
+6. Multiple aliases mapping to same field
+ensure deterministic selection
+7. _source_sheet preservation
+must remain untouched
+⚙️ Implementation Constraints (MVP Discipline)
+
+DO:
+
+Load mapping.json via existing loader
+Build reverse lookup: alias → canonical field
+Keep logic simple and deterministic
+
+DO NOT:
+
+Validate data completeness
+Add missing columns
+Normalize values (T3-2 responsibility)
+Inject Client field (T3-3 responsibility)
+Over-engineer abstraction layers
+🧠 Design Principles (CRITICAL)
+1. Mapping is structural, not semantic
+It aligns column names, nothing else
+2. Mapping must be deterministic
+Same input → same output
+No randomness or ordering ambiguity
+3. Mapping must be loss-aware
+Unmapped columns are intentionally dropped
+This is expected behavior
+🧠 Why This Matters (Explain After Implementation)
+
+Explain briefly:
+
+1. Why mapping is isolated from validation
+prevents premature failure
+keeps pipeline composable
+2. Why alias-driven design is critical
+real-world Excel data is inconsistent
+enables extensibility without code changes
+3. How this stage protects downstream logic
+ensures consistent schema before normalization/validation
+🚫 DO NOT
+Raise errors for missing fields
+Assume all canonical fields exist
+Modify data values
+Combine columns
+Add business logic
+Reference validation rules
+✅ Success Criteria
+
+This ticket is complete when:
+
+All tests pass
+Known aliases correctly map
+Unmapped columns are dropped
+Missing fields are tolerated
+Output is deterministic
+_source_sheet is preserved
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Generated a structured Claude prompt for implementing a deterministic column mapping engine (T3-1)  
+    - Reinforced strict separation between mapping and validation stages in the pipeline  
+    - Defined alias-driven schema normalization with case-insensitive matching rules  
+    - Included comprehensive TDD requirements covering mapping correctness and edge cases  
+
+- **Impact:**
+    - Established a clean transformation layer between parsing (T2-2) and validation (T4)  
+    - Ensured predictable schema normalization for downstream pipeline consistency  
+    - Strengthened MVP discipline by preventing premature validation or business logic leakage
+---
+
+### Prompt ID: P-024
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA review prompt for column mapping engine correctness and determinism
+#### Prompt
+```
+# 🧠 Claude Code Prompt — Senior QA / Test Review (T3-1 Column Mapping Engine)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** performing a deep review of:
+
+> **T3-1 — Column Mapping Engine (transformer.py)**
+
+Your responsibility is to evaluate:
+
+* correctness of mapping logic
+* test coverage quality
+* determinism and reliability
+* alignment with pipeline architecture
+
+---
+
+# 🎯 Review Objective
+
+Determine:
+
+> “Is this mapping engine safe, deterministic, and reliable for real-world messy Excel data?”
+
+This stage is **high-risk for silent data corruption**.
+
+---
+
+# 📌 Context Reminder
+
+### Input (from parser):
+
+* pandas DataFrame
+* column names already:
+
+  * lowercase
+  * trimmed
+* includes `_source_sheet`
+
+### Output (to normalization stage):
+
+* canonical column names (e.g., First, Last, Address1, etc.)
+* unmapped columns dropped
+* `_source_sheet` preserved
+
+---
+
+# ⚠️ Critical Constraints
+
+This stage must:
+
+* ✅ Map aliases → canonical names
+* ✅ Be case-insensitive
+* ✅ Be deterministic
+
+This stage must NOT:
+
+* ❌ Validate missing fields
+* ❌ Enforce schema completeness
+* ❌ Modify data values
+* ❌ Inject Client field
+* ❌ Perform normalization
+
+---
+
+# ⚠️ Critical Areas to Evaluate
+
+## 1. Alias Mapping Logic (HIGHEST RISK)
+
+Evaluate:
+
+* Is alias matching truly case-insensitive?
+* Are aliases normalized before comparison?
+* Is mapping.json used correctly as source of truth?
+
+Check for bugs like:
+
+* partial matches instead of exact matches
+* whitespace issues
+* incorrect alias resolution
+
+---
+
+## 2. Reverse Mapping Construction
+
+Typical pattern:
+
+```id="revmap"
+alias → canonical_field
+
+Check:
+
+Is reverse mapping built correctly?
+Are duplicate aliases handled safely?
+Are conflicts possible?
+3. Determinism
+
+Ensure:
+
+Same input always produces same output
+No dependency on dictionary ordering (unless controlled)
+Column selection is predictable
+4. Duplicate Column Handling
+
+Scenario:
+
+first_name + fname both exist
+
+Check:
+
+Which column is chosen?
+Is behavior consistent?
+Is it documented or implicit?
+
+MVP expectation:
+
+first occurrence wins (left-to-right)
+5. Unmapped Columns
+
+Verify:
+
+All unmapped columns are dropped
+No leakage into output
+6. Missing Canonical Fields
+
+Ensure:
+
+No error raised
+No empty columns created
+Fields simply absent
+7. _source_sheet Preservation
+
+Check:
+
+Column is retained exactly
+Not renamed, not dropped
+8. Separation of Concerns
+
+Ensure:
+
+No normalization logic present
+No validation logic present
+No business rules
+🧪 Test Suite Review
+1. Required Coverage
+
+Ensure tests exist for:
+
+exact match
+alias match
+case-insensitive match
+unknown column dropped
+missing required field
+duplicate alias scenario
+_source_sheet preservation
+2. Edge Case Coverage
+
+Look for missing tests:
+
+multiple aliases mapping to same canonical field
+alias collisions (if possible)
+empty DataFrame
+DataFrame with only unmapped columns
+mixed mapped + unmapped columns
+3. Test Quality
+
+Evaluate:
+
+Are assertions strong (checking column names, not just shape)?
+Are tests deterministic?
+Are edge cases explicitly verified?
+Is behavior clearly validated (not implied)?
+4. Fixture Realism
+
+Even without full T7-1:
+
+Are test DataFrames realistic?
+Do they reflect actual messy Excel scenarios?
+⚠️ Common Failure Patterns
+
+Actively look for:
+
+mapping based on substring instead of exact alias
+case sensitivity bugs
+inconsistent handling of duplicates
+silent dropping of important columns due to bad mapping
+accidental transformation of values
+🧪 Output Requirements
+
+Provide your review in this structure:
+
+1. ✅ What Was Done Well
+Strong design choices
+Correct pipeline alignment
+Clean mapping logic
+2. 🔴 Critical Issues (Must Fix)
+Incorrect mapping behavior
+Violations of acceptance criteria
+Anything that risks data corruption
+3. 🟡 Medium Issues (Should Fix Soon)
+Edge case gaps
+Determinism concerns
+Test weaknesses
+4. 🟢 Minor Improvements
+Code clarity
+Small refactors
+Logging suggestions (within MVP scope)
+5. 🧪 Test Coverage Gaps
+Missing edge cases
+Weak assertions
+Scenarios not tested
+6. 🔧 Suggested Fixes
+Specific, actionable improvements
+Keep strictly within MVP scope
+7. 🧠 Final Verdict
+
+Choose one:
+
+✅ Ready to merge
+⚠️ Merge with fixes
+❌ Not ready
+
+Provide reasoning.
+
+🚫 DO NOT
+Rewrite the entire module
+Add validation or normalization logic
+Introduce new architecture
+Expand scope beyond MVP
+✅ Success Criteria
+
+A strong review will:
+
+Catch silent mapping bugs
+Ensure deterministic behavior
+Strengthen test reliability
+Protect downstream pipeline stages
+
+Begin review.
+```
+
+- **Summary of Response:**
+    - Produced a detailed QA review prompt targeting correctness and determinism of the column mapping engine  
+    - Emphasized risks of silent data corruption from improper alias resolution and duplicate handling  
+    - Defined rigorous test coverage expectations including edge cases and realistic data scenarios  
+    - Reinforced strict separation from validation and normalization stages  
+
+- **Impact:**
+    - Strengthened reliability of schema transformation layer before validation stage  
+    - Reduced risk of incorrect column mappings propagating downstream  
+    - Ensured mapping logic is deterministic, testable, and aligned with MVP pipeline architecture
+---
+
+### Prompt ID: P-025
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Claude prompt generation for data normalization stage (T3-2)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T3-2 - Data normalization:
+
+# Description
+Strip whitespace from all string fields. Title-case First, Last, City. Upper-case State. Cast DonationAmount to float. Parse DonationDate to ISO 8601. Preserve ZIP as string.
+
+# Acceptance criteria
+- " john " → "John"
+- "new york" → "New York"
+- "ny" → "NY"
+- Excel date serial correctly parsed
+- ZIP "01234" stays "01234" not 1234
+
+# Test plan
+Parametrized unit tests for each normalization rule. Dedicated test for ZIP edge case.
+```
+
+- **Summary of Response:**
+    - Generated a Claude prompt for implementing a data normalization module with strict field-level transformations
+    - Defined explicit normalization rules for names, locations, state codes, dates, and numeric casting
+    - Emphasized preservation of ZIP codes as strings to prevent data loss
+    - Included TDD requirements with parametrized tests for each normalization behavior
+- **Impact:**
+    - Established a clean normalization layer between mapping (T3-1) and validation (T4)
+    - Ensured consistent formatting of critical fields for downstream validation and warehouse ingestion
+    - Reduced risk of data integrity issues, especially with date parsing and ZIP code handling
+---
+
+### Prompt ID: P-026
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** T3-2 data normalization implementation prompt with strict MVP and TDD constraints
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T3-2 Data Normalization (MVP + TDD + Pipeline Discipline)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T3-2 — Data Normalization**
+
+for the Donor Bureau Excel → CSV ingestion pipeline.
+
+---
+
+# 🎯 Project Context (Critical)
+
+Pipeline flow:
+
+```id="pipeflow"
+parse → map → normalize → validate → split → output
+
+You are implementing the normalization stage.
+
+⚠️ Upstream + Downstream Awareness
+Input (from T3-1 mapping engine):
+pandas DataFrame
+columns are canonical:
+First, Last, Address1, City, State, Zip, DonationDate, DonationAmount
+Some fields MAY be missing
+Values may be:
+messy
+inconsistent
+improperly formatted
+Output (to T4 validation):
+Same DataFrame
+values standardized into consistent formats
+STILL allowed to be invalid (validation happens next)
+🚨 Critical Engineering Constraint
+
+This stage is NOT responsible for validation.
+
+That means:
+
+Invalid values → allowed to pass through
+Missing fields → allowed
+Do NOT reject rows
+Do NOT enforce completeness
+
+👉 Validation happens in T4
+
+🎯 Ticket Goal
+
+Implement:
+
+app/normalizer.py
+
+This module must:
+
+standardize values across all relevant fields
+operate only on existing columns
+NOT introduce or remove columns
+⚙️ Functional Requirements
+1. Global String Cleanup
+
+For ALL string fields:
+
+strip leading/trailing whitespace
+
+Example:
+
+" john " → "john"
+2. Name + City Formatting
+
+Apply title case:
+
+First → Title Case
+Last → Title Case
+City → Title Case
+
+Examples:
+
+"john" → "John"
+"new york" → "New York"
+3. State Formatting
+Convert to uppercase
+
+Example:
+
+"ny" → "NY"
+4. DonationAmount
+Cast to float
+
+Examples:
+
+"100" → 100.0
+100 → 100.0
+
+Do NOT:
+
+validate > 0
+reject invalid values
+5. DonationDate
+Parse into ISO 8601 format (YYYY-MM-DD)
+
+Must support:
+
+Excel date serials
+standard string formats:
+"MM/DD/YYYY"
+"YYYY-MM-DD"
+"March 16, 2025"
+
+Output format:
+
+2025-03-16
+6. ZIP Code Handling (CRITICAL EDGE CASE)
+Must remain a string
+Must preserve leading zeros
+
+Example:
+
+"01234" → "01234"
+
+Do NOT:
+
+cast to int
+drop leading zeros
+7. Missing Columns
+If a column is missing:
+skip it silently
+do NOT error
+🧪 TDD REQUIREMENTS (MANDATORY)
+
+You MUST write tests FIRST.
+
+Required Unit Tests
+1. Whitespace stripping
+" john " → "john"
+2. Title case normalization
+"john" → "John"
+"new york" → "New York"
+3. State uppercase
+"ny" → "NY"
+4. DonationAmount casting
+"100" → 100.0
+5. DonationDate parsing
+
+Test multiple formats:
+
+Excel serial
+MM/DD/YYYY
+ISO
+natural language (e.g. "March 16, 2025")
+6. ZIP preservation (CRITICAL TEST)
+"01234" → "01234"
+
+Ensure:
+
+remains string
+leading zero preserved
+7. Missing column handling
+Input missing "City"
+normalization should NOT fail
+⚙️ Implementation Constraints (MVP Discipline)
+
+DO:
+
+Use pandas vectorized operations where possible
+Use safe parsing methods for dates (e.g. pandas.to_datetime)
+
+DO NOT:
+
+Drop rows
+Raise validation errors
+Enforce required fields
+Inject new columns
+Over-engineer abstraction layers
+🧠 Design Principles (CRITICAL)
+1. Normalize, don’t validate
+Clean data format
+Do NOT judge correctness
+2. Be tolerant of messy input
+Real-world Excel data is inconsistent
+System must not break on imperfect values
+3. Preserve data integrity
+Especially ZIP codes
+Avoid destructive transformations
+🧠 Why This Matters (Explain After Implementation)
+
+Explain briefly:
+
+1. Why normalization is separate from validation
+keeps pipeline flexible
+avoids premature rejection
+2. Why date parsing is high-risk
+many formats
+Excel serial quirks
+3. Why ZIP handling is critical
+leading zeros frequently lost in pipelines
+subtle but serious data integrity issue
+🚫 DO NOT
+Validate data (no rejection logic)
+Assume all columns exist
+Cast ZIP to numeric
+Enforce business rules
+Add unnecessary abstraction
+✅ Success Criteria
+
+This ticket is complete when:
+
+All tests pass
+Strings are trimmed and formatted correctly
+Dates are standardized to ISO format
+Amounts are floats
+ZIP codes preserve leading zeros
+Missing columns do not break execution
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Generated a detailed Claude prompt for implementing the data normalization stage with strict field-level transformations  
+    - Enforced separation from validation, ensuring normalization only standardizes formats without rejecting data  
+    - Defined handling for complex cases like date parsing and ZIP code preservation  
+    - Included comprehensive TDD requirements with parametrized tests for each normalization rule  
+
+- **Impact:**
+    - Established a critical formatting layer ensuring consistent data structure before validation  
+    - Reduced risk of downstream errors caused by inconsistent date, string, and numeric formats  
+    - Preserved data integrity (especially ZIP codes), preventing subtle but high-impact data issues
+---
+
+### Prompt ID: P-027
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA review prompt for data normalization correctness and data integrity
+#### Prompt
+```
+# 🧠 Claude Code Prompt — Senior QA / Test Review (T3-2 Data Normalization)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** performing a deep review of:
+
+> **T3-2 — Data Normalization (normalizer.py)**
+
+Your responsibility is to evaluate:
+
+* correctness of normalization logic
+* test coverage depth and quality
+* data safety (no unintended corruption)
+* strict adherence to pipeline responsibilities
+
+---
+
+# 🎯 Review Objective
+
+Determine:
+
+> “Does this normalization layer safely standardize messy input data without corrupting or over-processing it?”
+
+This stage is **high risk for subtle data corruption**, especially:
+
+* date parsing
+* numeric casting
+* ZIP code handling
+
+---
+
+# 📌 Context Reminder
+
+### Input:
+
+* pandas DataFrame
+* canonical column names (from mapping stage)
+* values may be inconsistent, messy, or malformed
+* some columns may be missing
+
+### Output:
+
+* same DataFrame structure
+* values normalized into consistent formats
+* invalid values still allowed (validation happens in T4)
+
+---
+
+# ⚠️ Critical Constraints
+
+This stage must:
+
+* ✅ Normalize values (formatting only)
+* ✅ Be tolerant of messy inputs
+* ✅ Preserve data integrity
+
+This stage must NOT:
+
+* ❌ Reject rows
+* ❌ Validate correctness (e.g., amount > 0)
+* ❌ Add or remove columns
+* ❌ Inject business logic
+
+---
+
+# ⚠️ Critical Areas to Evaluate
+
+## 1. Global Whitespace Handling
+
+Check:
+
+* Are all string fields trimmed?
+* Are non-string fields safely ignored?
+
+Watch for:
+
+* calling `.strip()` on non-strings (crashes)
+* inconsistent application across columns
+
+---
+
+## 2. Title Case Normalization
+
+Fields:
+
+* First
+* Last
+* City
+
+Evaluate:
+
+* Correct application of `.title()`
+* Handles edge cases like:
+
+  * "mcDonald" → (acceptable MVP behavior?)
+  * "o'connor"
+
+Focus:
+
+* consistency, not perfection
+
+---
+
+## 3. State Normalization
+
+Check:
+
+* `.upper()` applied correctly
+* whitespace removed first
+
+Example:
+
+``` id="q1zvlt"
+" ny " → "NY"
+4. DonationAmount Casting (HIGH RISK)
+
+Evaluate:
+
+Correct conversion to float
+Handles:
+strings ("100")
+numeric values (100)
+empty or malformed values (should NOT crash)
+
+Watch for:
+
+exceptions not handled
+unintended coercion to NaN without awareness
+5. DonationDate Parsing (HIGHEST RISK)
+
+Evaluate:
+
+Uses robust parsing (e.g., pandas.to_datetime)
+Supports:
+Excel serial dates
+multiple string formats
+Outputs ISO format: YYYY-MM-DD
+
+Check for:
+
+timezone issues
+incorrect parsing (e.g., day/month swap)
+silent failures producing NaT
+6. ZIP Code Handling (CRITICAL EDGE CASE)
+
+Verify:
+
+Always remains a string
+Leading zeros preserved
+
+Watch for:
+
+accidental casting to int
+pandas auto-conversion stripping zeros
+
+Example failure:
+
+"01234" → "1234" ❌
+7. Missing Columns Handling
+
+Check:
+
+Code safely skips missing columns
+No KeyErrors
+No assumptions about column presence
+8. Separation of Concerns
+
+Ensure:
+
+No validation logic present
+No row rejection
+No schema enforcement
+No column creation/removal
+🧪 Test Suite Review
+1. Required Coverage
+
+Ensure tests exist for:
+
+whitespace stripping
+title casing
+state uppercase
+DonationAmount casting
+DonationDate parsing (multiple formats)
+ZIP preservation
+missing column handling
+2. Edge Case Coverage
+
+Look for missing tests:
+
+null values in string fields
+mixed data types in same column
+invalid date formats
+invalid numeric values
+empty strings vs NaN
+ZIP already numeric (should still output string?)
+3. Test Quality
+
+Evaluate:
+
+Are assertions strong (value-level, not just type)?
+Are tests deterministic?
+Are multiple date formats explicitly tested?
+Is ZIP behavior explicitly validated?
+4. Silent Failure Detection
+
+Look for:
+
+transformations that fail silently (NaT, NaN)
+lack of assertions catching these failures
+⚠️ Common Failure Patterns
+
+Actively look for:
+
+ZIP codes losing leading zeros
+date parsing inconsistencies
+.strip() applied to non-string types
+numeric casting crashing on bad input
+normalization accidentally performing validation
+🧪 Output Requirements
+
+Provide your review in this structure:
+
+1. ✅ What Was Done Well
+Strong normalization logic
+Correct pipeline alignment
+Good handling of messy data
+2. 🔴 Critical Issues (Must Fix)
+Data corruption risks
+Violations of acceptance criteria
+Crashes or unsafe transformations
+3. 🟡 Medium Issues (Should Fix Soon)
+Edge case gaps
+Weak handling of mixed types
+Test coverage gaps
+4. 🟢 Minor Improvements
+Code clarity
+Minor optimizations
+Readability improvements
+5. 🧪 Test Coverage Gaps
+Missing scenarios
+Weak assertions
+Unchecked edge cases
+6. 🔧 Suggested Fixes
+Specific, actionable improvements
+Stay within MVP scope
+7. 🧠 Final Verdict
+
+Choose one:
+
+✅ Ready to merge
+⚠️ Merge with fixes
+❌ Not ready
+
+Provide reasoning.
+
+🚫 DO NOT
+Rewrite the entire module
+Introduce validation logic
+Add new features
+Expand beyond MVP scope
+✅ Success Criteria
+
+A strong review will:
+
+Protect against subtle data corruption
+Ensure consistent normalization behavior
+Strengthen test reliability
+Prepare clean handoff to validation stage (T4)
+
+Begin review.
+```
+
+- **Summary of Response:**
+    - Generated a detailed QA review prompt focused on safeguarding data integrity in normalization logic  
+    - Highlighted high-risk areas such as date parsing, numeric casting, and ZIP code preservation  
+    - Defined comprehensive test coverage expectations including edge cases and silent failure detection  
+    - Reinforced strict separation between normalization and validation responsibilities  
+
+- **Impact:**
+    - Strengthened reliability of the normalization layer before validation  
+    - Reduced risk of subtle, hard-to-detect data corruption in downstream pipeline stages  
+    - Ensured normalization logic is robust, test-driven, and aligned with MVP architecture
+---
+
+### Prompt ID: P-028
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude prompt for Client field injection stage (T3-3)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T3-3 - Client field injection: 
+
+# Description 
+Add a Client column derived from the sheet name for each row. 
+Since a single workbook may contain multiple clients (one per sheet), the Client value must be assigned based on the originating sheet of each record. 
+
+# Acceptance Criteria 
+- Every row includes a non-null Client value 
+- Client value matches the _source_sheet field from the parser 
+- Works correctly for multi-sheet workbooks with different client names 
+- Sheet names are normalized (e.g., trimmed whitespace) before assignment 
+- No row has an empty or whitespace-only Client value 
+
+# Assumptions 
+- Each sheet represents a distinct client dataset 
+- Sheet names are sufficiently descriptive to act as a client identifier 
+- _source_sheet column is reliably populated during parsing 
+
+# Test Plan 
+- Unit test: single-sheet workbook → all rows have same Client value 
+- Unit test: multi-sheet workbook → rows correctly reflect their respective sheet names 
+- Unit test: sheet name with leading/trailing whitespace → correctly normalized 
+
+- Integration test: 
+        - mixed multi-sheet file → verify correct client assignment across all rows
+```
+
+- **Summary of Response:**
+    - Generated a structured Claude prompt defining T3-3 within pipeline context (post-mapping, pre-validation)
+    - Emphasized strict reliance on _source_sheet as source of truth for Client field
+    - Reinforced normalization rules and non-null guarantees without introducing validation logic
+    - Included TDD requirements with unit and integration tests covering multi-sheet scenarios
+- **Impact:**
+    - Clearly defines responsibility boundaries between parsing and downstream validation
+    - Ensures consistent Client attribution across multi-sheet ingestion workflows
+    - Prevents premature validation while guaranteeing required field presence for later stages
+---
+
+### Prompt ID: P-029
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Generate Claude implementation prompt for T3-3 Client field injection
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T3-3 Client Field Injection (MVP + TDD + Pipeline Discipline)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T3-3 — Client Field Injection**
+
+for the Donor Bureau Excel → CSV ingestion pipeline.
+
+---
+
+# 🎯 Project Context (Critical)
+
+Pipeline flow:
+
+parse → map → normalize → client_injection → validate → split → output
+
+You are implementing the stage responsible for assigning the **Client** field.
+
+---
+
+## ⚠️ Upstream + Downstream Awareness
+
+### Input (from T3-2 normalization):
+
+- pandas DataFrame
+- includes `_source_sheet` column (from parser)
+- may contain multiple sheets combined into one DataFrame
+- values already normalized, but structure not yet validated
+
+### Output (to T4 validation):
+
+- same DataFrame
+- now includes a **Client** column
+
+---
+
+## 🚨 Critical Engineering Constraint
+
+This stage is **NOT responsible for validation**.
+
+That means:
+
+- Do NOT reject rows
+- Do NOT enforce schema completeness beyond injecting Client
+- Do NOT validate client naming quality
+
+👉 Validation happens in **T4**
+
+---
+
+# 🎯 Ticket Goal
+
+Implement:
+
+app/client.py
+
+(or integrate into existing transformer layer if already structured that way)
+
+This module must:
+
+- create a `Client` column
+- populate it using `_source_sheet`
+- normalize values safely (trim whitespace)
+- ensure consistency across all rows
+
+---
+
+# ⚙️ Functional Requirements
+
+## 1. Client Assignment
+
+- For each row:
+  - Client = `_source_sheet`
+
+---
+
+## 2. Sheet Name Normalization
+
+- Strip leading/trailing whitespace
+
+Example:
+" Alpha Fund " → "Alpha Fund"
+
+---
+
+## 3. Required Behavior
+
+- Every row must have a non-null Client value
+- No empty strings
+- No whitespace-only values
+
+---
+
+## 4. Multi-Sheet Handling
+
+Must correctly assign different Client values within same DataFrame:
+
+Sheet1 → Client A  
+Sheet2 → Client B
+
+---
+
+## 5. _source_sheet Handling
+
+- Must remain unchanged
+- Must NOT be dropped or overwritten
+
+---
+
+# 🧪 TDD REQUIREMENTS (MANDATORY)
+
+Write tests FIRST.
+
+## Required Unit Tests
+
+1. Single-sheet input
+- all rows same Client value
+- matches sheet name
+
+2. Multi-sheet input
+- correct client per row
+- multiple clients present
+
+3. Sheet name normalization
+- trims whitespace correctly
+
+4. No empty Client values
+- no null / "" / whitespace-only
+
+---
+
+## Integration Test
+
+- multi-sheet DataFrame simulation
+- verify:
+  - correct Client assignment
+  - no data loss
+  - _source_sheet consistency
+
+---
+
+# ⚙️ Implementation Constraints (MVP Discipline)
+
+DO:
+- use pandas vectorized operations
+- rely ONLY on `_source_sheet`
+- keep logic minimal and deterministic
+
+DO NOT:
+- validate client names
+- drop rows
+- modify unrelated columns
+- add metadata logic
+- over-engineer abstractions
+
+---
+
+# 🧠 Design Principles (CRITICAL)
+
+1. Client is derived, not sourced from data cells
+2. Deterministic transformation only
+3. Normalize, do not validate
+
+---
+
+# 🚫 DO NOT
+
+- read Client from Excel content
+- validate client names
+- modify _source_sheet
+- introduce business logic
+
+---
+
+# ✅ Success Criteria
+
+Complete when:
+- all tests pass
+- every row has valid Client
+- correct mapping from _source_sheet
+- deterministic multi-sheet handling
+
+---
+
+Begin.
+```
+
+- **Summary of Response:**
+    - Structured a full MVP + TDD implementation prompt for Claude defining Client field injection logic
+    - Reinforced strict dependency on _source_sheet as sole source of truth for Client assignment
+    - Explicitly separated concerns between ingestion, transformation, and downstream validation
+    - Included deterministic behavior rules and multi-sheet handling requirements
+- **Impact:**
+    - Locks in consistent client attribution across all pipeline data before validation stage
+    - Prevents leakage of business logic into transformation layer
+    - Ensures downstream analytics can reliably segment data by client without ambiguity
+---
+
+### Prompt ID: P-030
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Generate QA review prompt for T3-3 Client field injection validation
+#### Prompt
+```
+# 🧠 Claude Code Prompt — Senior QA / Test Review (T3-3 Client Field Injection)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** performing a deep review of:
+
+> T3-3 — Client Field Injection
+
+Your responsibility is to evaluate:
+
+- correctness of Client assignment logic
+- data integrity across multi-sheet ingestion
+- test coverage quality
+- adherence to strict MVP pipeline boundaries
+
+---
+
+# 🎯 Review Objective
+
+Determine:
+
+> “Is the Client field correctly and reliably derived from sheet metadata without introducing inconsistencies or data corruption?”
+
+This is a **high-trust field** used for downstream segmentation and analytics.
+
+---
+
+# 📌 Context Reminder
+
+Input:
+- pandas DataFrame
+- includes `_source_sheet` column (from parser stage)
+- may contain multiple sheets combined
+- sheet names may contain whitespace inconsistencies
+
+Output:
+- same DataFrame
+- new `Client` column
+- derived ONLY from `_source_sheet`
+
+---
+
+# ⚠️ Critical Constraints
+
+This stage must:
+- derive Client strictly from `_source_sheet`
+- normalize sheet names (trim whitespace only)
+- be deterministic across all rows
+
+This stage must NOT:
+- read client values from Excel cells
+- validate client names
+- modify other columns
+- drop or filter rows
+- depend on external mapping/config
+
+---
+
+# ⚠️ Critical Areas to Evaluate
+
+## 1. Source of Truth Enforcement (HIGHEST PRIORITY)
+Check:
+- Is `_source_sheet` the ONLY source used?
+- Is any fallback logic present?
+- Are in-cell “Client” values ever used?
+
+---
+
+## 2. Sheet Name Normalization
+Verify:
+- whitespace trimming applied correctly
+- no over-normalization (no unintended lowercasing)
+- consistent behavior across all rows
+
+Example:
+" Alpha Fund " → "Alpha Fund"
+
+---
+
+## 3. Multi-Sheet Integrity
+Check:
+- correct Client values per sheet
+- no cross-sheet contamination
+- no row misassignment across sheets
+
+---
+
+## 4. Determinism
+Ensure:
+- same input → same output
+- no row-order dependency
+- no groupby/order side effects
+
+---
+
+## 5. Empty / Invalid Values Handling
+Verify:
+- no null Client values
+- no empty strings
+- no whitespace-only values
+
+---
+
+## 6. Column Integrity
+Ensure:
+- `_source_sheet` unchanged
+- `Client` correctly added
+- no overwrites of existing columns
+
+---
+
+## 7. Separation of Concerns
+Confirm:
+- no validation logic (T4 responsibility)
+- no mapping logic (T3-1 responsibility)
+- no normalization logic beyond trimming
+
+---
+
+# 🧪 Test Suite Review
+
+## Required Coverage
+- single-sheet case
+- multi-sheet case
+- whitespace in sheet names
+- multiple distinct clients
+- no empty Client values
+
+---
+
+## Edge Case Coverage
+- empty `_source_sheet`
+- malformed sheet names
+- duplicate sheet names
+- single-row DataFrame
+- large dataset consistency
+
+---
+
+## Test Quality
+- value-based assertions
+- explicit multi-sheet validation
+- clear failure diagnostics
+
+---
+
+## Integration Confidence
+- compatibility with T2-2 parser output
+- compatibility with T3-2 normalization
+- safe handoff to T4 validation
+
+---
+
+# ⚠️ Common Failure Patterns
+- using Excel cell “Client” instead of sheet name
+- inconsistent whitespace handling
+- cross-sheet contamination
+- silent null Client values
+- accidental mutation of `_source_sheet`
+
+---
+
+# 🧪 Output Requirements
+
+## 1. What Was Done Well
+## 2. Critical Issues (Must Fix)
+## 3. Medium Issues
+## 4. Minor Improvements
+## 5. Test Coverage Gaps
+## 6. Suggested Fixes
+## 7. Final Verdict
+
+---
+
+# 🚫 DO NOT
+- rewrite implementation
+- add validation logic
+- introduce new pipeline stages
+- expand scope beyond MVP
+
+---
+
+# ✅ Success Criteria
+
+Ensure:
+- deterministic Client derivation
+- no cross-sheet contamination
+- safe integration into T4 stage
+- strong test coverage for multi-sheet behavior
+
+---
+
+Begin review.
+```
+
+- **Summary of Response:**
+     - Produced a structured QA review prompt for T3-3 focusing on Client derivation correctness and multi-sheet integrity
+     - Reinforced strict reliance on _source_sheet as sole source of truth
+     - Defined detailed test coverage expectations and edge case analysis
+     - Maintained strict MVP boundaries and separation from validation logic
+- **Impact:**
+     - Strengthens data integrity guarantees for downstream analytics and segmentation
+     - Reduces risk of cross-sheet contamination in multi-client datasets
+     - Ensures consistent, deterministic behavior before entering validation stage (T4)
+---
+
+### Prompt ID: P-031
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for pipeline orchestrator (T3-4)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T3-4 - Pipeline orchestrator:
+
+# Description
+Central function that executes pipeline in order:
+parse → map → normalize → validate → split → enforce schema → output
+
+# Acceptance criteria
+- single run_pipeline(df, config) function exists
+- each stage receives the output of the previous
+- any stage raising an exception halts the pipeline and bubbles up a structured error
+- the function returns a dict with clean_df, rejected_df, and summary.
+
+# Test plan
+- unit test with a mocked happy path (all stages pass)
+- unit test where validation stage raises — confirm pipeline halts and error propagates correctly
+- integration test using a real fixture end-to-end.
+```
+
+- **Summary of Response:**
+    - Generated a structured Claude prompt defining T3-4 pipeline orchestrator as a deterministic execution layer
+    - Specified strict stage ordering: parse → map → normalize → validate → split → enforce schema → output
+    - Defined failure propagation rules ensuring any stage error halts execution and returns structured output
+    - Included unit and integration test requirements covering both happy path and failure scenarios
+- **Impact:**
+    - Establishes a single control point for pipeline execution and stage coordination
+    - Ensures consistent data flow across all transformation stages with strict ordering guarantees
+    - Improves reliability by enforcing fail-fast behavior and structured error handling
+    - Enables end-to-end testability of the full ingestion pipeline prior to production scaling
+---
+
+### Prompt ID: P-032
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Generate Claude implementation prompt for T3-4 pipeline orchestrator (execution layer)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T3-4 Pipeline Orchestrator (MVP TDD Execution Layer)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> T3-4 — Pipeline Orchestrator
+
+for the Donor Bureau Excel → CSV ingestion system.
+
+---
+
+# 🎯 Role of This Component (Critical Context)
+
+This is the **central execution layer** of the entire pipeline.
+
+It is NOT responsible for data transformation logic.
+
+It is ONLY responsible for:
+
+> Coordinating execution order + passing outputs between stages safely.
+
+---
+
+# ⚙️ Pipeline Flow (STRICT ORDER)
+
+You MUST implement the following deterministic flow:
+
+parse → map → normalize → client_injection → validate → split → enforce_schema → output
+
+Each stage:
+
+- receives output from previous stage
+- returns output to next stage
+- must remain independent and testable
+
+---
+
+# 📌 Core Function Requirement
+
+Implement:
+
+```python
+run_pipeline(df, config)
+📥 Input
+df: raw parsed DataFrame (from parser stage)
+config: loaded configuration object (mapping.json + settings)
+📤 Output
+
+Function MUST return:
+
+{
+"clean_df": DataFrame,
+"rejected_df": DataFrame,
+"summary": {
+"total_rows": int,
+"clean_rows": int,
+"rejected_rows": int
+}
+}
+
+⚠️ Critical Design Constraints
+1. No Business Logic Allowed
+
+This orchestrator MUST NOT:
+
+normalize data
+validate fields
+map columns
+infer schema rules
+
+It only coordinates.
+
+2. Deterministic Execution
+Same input → same output
+No randomness
+No hidden side effects
+No external state dependency
+3. Strict Stage Boundaries
+
+Each stage must be called explicitly:
+
+df1 = parse(df, config)
+df2 = map_columns(df1, config)
+df3 = normalize(df2)
+df4 = inject_client(df3)
+df5 = validate(df4)
+clean_df, rejected_df = split(df5)
+final_df = enforce_schema(clean_df)
+
+🚨 Error Handling Requirements (CRITICAL)
+1. Fail Fast Behavior
+
+If ANY stage raises an exception:
+
+pipeline MUST stop immediately
+exception MUST NOT be swallowed
+error MUST bubble up to caller
+2. Structured Error Contract
+
+If an error occurs, wrap it in:
+
+{
+"error_stage": "<stage_name>",
+"error_type": "<exception_type>",
+"error_message": "<message>"
+}
+
+3. No Partial Output on Failure
+
+If pipeline fails:
+
+do NOT return partial clean/rejected data
+raise structured exception instead
+🧪 TESTING REQUIREMENTS (TDD-FIRST)
+1. Happy Path Unit Test (Mocked Stages)
+
+Mock all stages:
+
+parse
+map
+normalize
+client_injection
+validate
+split
+enforce_schema
+
+Verify:
+
+correct execution order
+correct data passing between stages
+correct return structure
+2. Failure Propagation Test (Validation Stage)
+
+Simulate:
+
+validate() raises exception
+
+Verify:
+
+pipeline halts immediately
+exception propagates
+no further stages executed
+3. Integration Test (Real Fixture)
+
+Verify:
+
+clean_df output correct
+rejected_df output correct
+summary counts correct
+deterministic behavior
+🧠 Observability Requirements (MVP LIGHTWEIGHT)
+log stage start
+log stage completion
+log stage failure
+
+No heavy observability systems.
+
+🚫 DO NOT
+implement transformation logic
+mutate DataFrames beyond passing through
+merge pipeline stages
+swallow exceptions
+introduce async/concurrency
+✅ SUCCESS CRITERIA
+run_pipeline is single entry point
+strict execution order enforced
+failure halts pipeline immediately
+full test coverage for:
+happy path
+failure propagation
+integration flow
+🧠 FINAL NOTE
+
+This orchestrator is the backbone of the system.
+
+If it fails or becomes ambiguous:
+
+downstream debugging becomes impossible.
+
+Begin implementation.
+```
+
+- **Summary of Response:**
+    - Generated a deterministic orchestration-layer prompt defining `run_pipeline(df, config)` as the central pipeline execution function
+    - Enforced strict stage ordering with no embedded business logic in orchestrator layer
+    - Defined fail-fast error handling with structured error propagation contract
+    - Included TDD requirements covering mocked unit tests, failure propagation, and full integration testing
+- **Impact:**
+    - Establishes a single source of truth for pipeline execution sequencing and coordination
+    - Ensures strong separation of concerns between orchestration and transformation logic
+    - Prevents partial execution failures and silent error swallowing in production workflows
+    - Enables full end-to-end testability of the entire ingestion pipeline with deterministic behavior
+---
+
+### Prompt ID: P-033
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Senior QA / Lead Data Engineer Review Prompt for T3-4 Pipeline Orchestrator
+#### Prompt:
+```
+# 🧠 Claude Code Prompt — Senior QA / Lead Tester Review (T3-4 Pipeline Orchestrator)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** reviewing:
+
+> **T3-4 — Pipeline Orchestrator (run_pipeline)**
+
+This is the **central execution layer** of the Donor Bureau ingestion pipeline.
+
+Your goal is to validate:
+
+> “Does this orchestrator correctly coordinate the pipeline without hiding failures or corrupting flow integrity?”
+
+---
+
+# 🎯 Context Reminder
+
+Pipeline order MUST be:
+
+```text
+parse → map → normalize → client_injection → validate → split → enforce_schema → output
+
+This component does NOT transform data.
+
+It ONLY orchestrates execution.
+
+⚠️ CRITICAL REVIEW OBJECTIVE
+
+You are looking for:
+
+broken execution order
+hidden failure handling
+incorrect stage wiring
+partial or inconsistent outputs
+silent data corruption introduced by orchestration
+🚨 MOST IMPORTANT FAILURE MODE (WATCH CLOSELY)
+Silent Failure Masking
+
+Check if ANY of the following exist:
+
+try/except blocks that swallow exceptions
+returning partial DataFrames on failure
+converting errors into empty DataFrames
+logging errors but continuing execution
+
+👉 These are critical bugs in a data pipeline
+
+⚙️ Required Function Behavior
+
+Verify existence and correctness of:
+
+run_pipeline(df, config)
+
+Must:
+
+execute all stages in correct order
+pass output of one stage into next
+return structured output dict
+fail fast on error
+📤 Expected Output Structure
+
+Ensure return format is EXACT:
+
+{
+    "clean_df": DataFrame,
+    "rejected_df": DataFrame,
+    "summary": {
+        "total_rows": int,
+        "clean_rows": int,
+        "rejected_rows": int
+    }
+}
+🧪 TEST REVIEW REQUIREMENTS
+1. Happy Path Test (Mocked Stages)
+
+Verify:
+
+all stages are mocked correctly
+execution order is enforced
+each stage receives correct input
+final output structure is validated
+
+🚨 Watch for weak tests that only check “function called”
+
+2. Failure Propagation Test (CRITICAL)
+
+Simulate:
+
+validate() raises an exception
+
+Verify:
+
+pipeline stops immediately
+exception is NOT swallowed
+no downstream stages execute
+error propagates to caller
+3. Integration Test (Real Fixture)
+
+Verify:
+
+full pipeline executes end-to-end
+correct clean_df and rejected_df outputs
+summary counts are accurate
+deterministic results across runs
+4. Edge Case Coverage
+
+Check for missing tests:
+
+empty DataFrame input
+validation failure mid-pipeline
+malformed config input
+single-row dataset
+large dataset consistency
+⚙️ EXECUTION FLOW VALIDATION
+
+Confirm:
+
+each stage is called EXACTLY once per run
+no stage is skipped
+no stage is duplicated
+output chaining is correct
+
+Example expectation:
+
+parse(df)
+  ↓
+map()
+  ↓
+normalize()
+  ↓
+inject_client()
+  ↓
+validate()
+  ↓
+split()
+  ↓
+enforce_schema()
+  ↓
+return
+🧠 ARCHITECTURE REVIEW
+
+Check for:
+
+1. Separation of Concerns
+orchestrator does NOT transform data
+stages remain independent
+no business logic leaks into orchestrator
+2. Determinism
+same input always produces same output
+no hidden state or caching
+no random or time-based behavior
+3. Error Handling Design
+
+Ensure:
+
+failures are immediately raised
+structured error context exists if implemented
+no partial result return on failure
+⚠️ COMMON BUGS TO LOOK FOR
+stages executed in wrong order
+validate step bypassed accidentally
+enforce_schema applied before split (wrong order)
+clean/rejected swap bugs
+summary counts mismatched
+DataFrame mutation across stages (shared reference issues)
+🧪 OUTPUT FORMAT
+
+Return your review using:
+
+1. ✅ What Works Well
+correct orchestration structure
+strong separation of concerns
+good test design
+2. 🔴 Critical Issues (Must Fix)
+ordering violations
+hidden failure handling
+incorrect outputs
+missing failure propagation
+3. 🟡 Medium Issues (Should Fix)
+weak test assertions
+incomplete edge case coverage
+unclear stage interfaces
+4. 🟢 Minor Improvements
+readability improvements
+logging clarity
+naming improvements
+5. 🧪 Test Coverage Gaps
+missing integration cases
+insufficient failure simulation
+weak mocking strategy
+6. 🔧 Suggested Fixes
+actionable improvements only
+do NOT redesign pipeline architecture
+stay within MVP scope
+7. 🧠 Final Verdict
+
+Choose one:
+
+✅ Ready to merge
+⚠️ Merge with fixes
+❌ Not ready
+
+Provide justification.
+
+🚫 DO NOT
+rewrite the orchestrator
+add new pipeline stages
+introduce async/concurrency
+modify business logic
+expand scope beyond MVP
+🎯 SUCCESS CRITERIA
+
+This review passes if:
+
+pipeline execution is deterministic
+failures are correctly propagated
+stage order is strictly enforced
+no silent failure paths exist
+tests provide real confidence in orchestration correctness
+
+Begin review.
+```
+
+- **Summary of Response:**
+    - Produced a structured senior QA review prompt for the T3-4 pipeline orchestrator
+    - Emphasized strict enforcement of execution order: parse → map → normalize → client_injection → validate → split → enforce_schema → output
+    - Focused heavily on detecting silent failure masking, which is the highest-risk failure mode in orchestration layers
+    - Defined detailed requirements for unit, failure propagation, and integration testing
+    - Reinforced strict separation of concerns and deterministic execution without side effects
+- **Impact:**
+    - Ensures the orchestrator is evaluated as a deterministic control plane rather than a transformation layer
+    - Prevents hidden failure paths that could silently corrupt downstream data workflows
+    - Strengthens confidence in end-to-end pipeline reliability before scaling or production use
+---
+
+### Prompt ID: P-034
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** E3 Checkpoint Review — End-to-End QA & Data Engineering Audit
+
+#### Prompt:
+```
+ok now that we've completed up to E3 - Data Processing please generate a prompt to Claude to do a checkpoint review of all the code as it stands and also take into consideration the input_contract, fixtures, testing, MVP as a lead senior QA / Data Engineer
+```
+
+- **Summary of Response:**
+    - Generated a comprehensive E3 checkpoint review prompt covering the entire pipeline from config through orchestration
+    - Integrated input_contract, fixture realism, TDD rigor, and MVP discipline into a unified QA evaluation framework
+    - Emphasized high-risk areas including parser reliability, mapping determinism, normalization safety, and orchestrator    - fail-fast behavior
+    - Defined a structured audit output including executive summary, issue severity tiers, test coverage assessment, and readiness verdict
+
+- **Impact:**
+    - Provides a critical quality gate before entering T4 (validation), reducing risk of compounding downstream errors
+    - Surfaces hidden data integrity issues early across the full pipeline lifecycle
+    - Ensures alignment between implementation, contract expectations, and real-world data variability
+    - Strengthens confidence that the system is production-viable and not just test-passing
+---
+
+### Prompt ID: P-035
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** E3 System Checkpoint Audit — Contract Compliance & Pipeline Readiness Assessment
+#### Prompt
+```
+# 🧠 Claude Code Prompt — E3 Checkpoint System Review (Senior QA + Lead Data Engineer)
+
+You are acting as a **Senior Lead QA Engineer + Principal Data Engineer** performing a **full system checkpoint review** of the Donor Bureau Excel → CSV ingestion pipeline at milestone:
+
+> **E3 — Data Processing Complete (T2–T3 implemented)**
+
+---
+
+# 🎯 Purpose of This Review
+
+This is NOT a file-by-file review.
+
+This is a **system-level audit** to determine:
+
+> “Is this pipeline correct, testable, and aligned with the Input Contract and MVP architecture before moving into validation (T4) and output hardening (T5)?”
+
+---
+
+# 📌 Primary Sources of Truth (NON-NEGOTIABLE)
+
+You must evaluate ALL code against:
+
+## 1. Input Contract (STRICT AUTHORITY)
+
+* `/docs/input_contract.md`
+
+This defines:
+
+* sheet structure
+* header detection rules
+* column aliases
+* metadata handling rules
+* assumptions about real-world data
+
+---
+
+## 2. Fixture Library (GROUND TRUTH FOR BEHAVIOR)
+
+* `/tests/fixtures/` (T7-1 expected coverage)
+
+You must assume:
+
+> If a behavior is not represented in fixtures, it is NOT validated.
+
+---
+
+## 3. Architecture Intent (MVP PIPELINE DESIGN)
+
+Pipeline must follow:
+
+text id="pipeline_e3"
+parse → map → normalize → client_injection → validate → split → enforce_schema → output
+
+---
+
+# ⚠️ CRITICAL REVIEW OBJECTIVES
+
+You are verifying:
+
+## 1. Contract Compliance
+
+Does the system strictly obey `input_contract.md`?
+
+Look for:
+
+* incorrect header detection assumptions
+* metadata rows misinterpreted as data
+* incorrect alias mapping
+* invalid client derivation logic
+* broken multi-sheet handling
+
+---
+
+## 2. Pipeline Integrity (T2–T3)
+
+Verify each stage:
+
+* parser (multi-sheet correctness)
+* mapper (alias correctness, no validation leakage)
+* normalizer (no schema enforcement, only transformation)
+* client injection (pure derivation from `_source_sheet`)
+* orchestrator (correct sequencing, no logic leakage)
+
+---
+
+## 3. Separation of Concerns (CRITICAL)
+
+Check for violations:
+
+* validation logic inside T3 stages ❌
+* transformation logic inside orchestrator ❌
+* schema enforcement before validation ❌
+* client logic in parser or mapper ❌
+
+---
+
+## 4. Data Integrity Risks (HIGH PRIORITY)
+
+Actively search for:
+
+* ZIP code corruption (leading zero loss)
+* date parsing inconsistencies (Excel serial + string mix)
+* numeric coercion errors (DonationAmount)
+* silent NaT / NaN propagation
+* sheet mixing across multi-sheet ingestion
+* client misassignment across sheets
+
+---
+
+## 5. Error Handling Strategy
+
+Verify:
+
+* fail-fast behavior in orchestrator
+* structured error propagation
+* no silent swallowing of exceptions
+* validation errors separated from system errors
+
+---
+
+## 6. Test Coverage vs Real Behavior
+
+Cross-check:
+
+### Required test categories:
+
+* single-sheet ingestion
+* multi-sheet ingestion
+* header offset detection
+* metadata row skipping
+* alias mapping coverage
+* normalization correctness (dates, ZIP, amounts)
+* validation rejection logic
+* orchestrator failure propagation
+* full integration test
+
+---
+
+# ⚠️ MAJOR GAP ANALYSIS (CRITICAL TASK)
+
+Identify:
+
+## 1. What is NOT tested but SHOULD be
+
+Based on input contract + fixtures
+
+## 2. What is tested but NOT representative of real-world input
+
+## 3. Any mismatch between:
+
+* fixtures vs contract
+* contract vs implementation
+* implementation vs tests
+
+---
+
+# 🧪 SYSTEM INTEGRATION REVIEW
+
+Simulate mentally:
+
+> “If I upload a real messy Excel file from a donor organization, will this pipeline behave correctly end-to-end?”
+
+Check:
+
+* correct sheet parsing
+* correct header detection
+* correct alias resolution
+* correct normalization
+* correct client assignment
+* correct validation split
+* correct output schema
+
+---
+
+# 📊 OUTPUT REQUIREMENTS
+
+Provide a structured report:
+
+---
+
+## 1. 🧠 Executive Summary
+
+* Is system MVP-ready for T4?
+* Major risks blocking progression?
+
+---
+
+## 2. ✅ What Is Strong
+
+* architecture alignment
+* correct separation of concerns
+* strong TDD adherence
+* good pipeline modularity
+
+---
+
+## 3. 🔴 Critical Issues (BLOCKERS)
+
+Must include:
+
+* contract violations
+* data corruption risks
+* pipeline ordering issues
+* test coverage gaps affecting correctness
+
+---
+
+## 4. 🟡 Medium Risks
+
+* edge cases not fully handled
+* weak fixture coverage alignment
+* brittle parsing assumptions
+
+---
+
+## 5. 🟢 Minor Issues
+
+* readability improvements
+* logging improvements
+* minor refactors
+
+---
+
+## 6. 🧪 Test Coverage Audit
+
+* What is well-covered
+* What is missing
+* What is misleading or insufficient
+
+---
+
+## 7. 📉 Contract vs Code Drift Analysis
+
+Explicitly list:
+
+* Input contract expectation → implementation mismatch
+* Fixture expectation → missing coverage
+* Implementation assumption → not validated
+
+---
+
+## 8. 🔧 Recommendations (MVP-SAFE ONLY)
+
+* fixes must NOT introduce new architecture
+* no feature expansion
+* no refactoring beyond necessity
+
+---
+
+## 9. 🧠 Final Verdict
+
+Choose one:
+
+* ✅ READY FOR T4 (Validation Layer)
+* ⚠️ READY WITH MINOR FIXES
+* ❌ NOT READY — MUST FIX BEFORE PROCEEDING
+
+---
+
+# 🚫 STRICT PROHIBITIONS
+
+Do NOT:
+
+* redesign pipeline
+* add new stages
+* introduce new frameworks
+* expand scope beyond MVP
+* ignore input_contract.md
+
+---
+
+# 🎯 SUCCESS CRITERIA
+
+This review passes only if:
+
+* pipeline is contract-compliant
+* T2–T3 stages are cleanly separated
+* data integrity is guaranteed
+* test coverage is meaningful (not superficial)
+* system is safe to proceed to validation layer (T4)
+
+---
+
+Begin full system audit.
+
+```
+
+- **Summary of Response:**
+    - Constructed a comprehensive system-level QA audit prompt for evaluating the Donor Bureau pipeline at E3 completion
+    - Positioned the review around three core authorities: input_contract.md, fixture library, and MVP pipeline architecture
+    - Emphasized critical risk areas including header detection, alias mapping, normalization safety, client assignment, and orchestrator integrity
+    - Introduced a structured gap analysis to identify mismatches between contract, fixtures, tests, and implementation
+    - Defined rigorous output expectations including executive summary, issue severity tiers, contract drift analysis, and final readiness verdict
+    - Reinforced strict MVP boundaries and prohibited scope expansion or architectural redesign during review
+- **Impact:**
+    - Establishes a high-signal checkpoint ensuring the pipeline is safe, contract-compliant, and test-validated before entering T4 (validation layer)
+    - Surfaces hidden inconsistencies between design intent and implementation early, reducing downstream rework
+    - Strengthens confidence in end-to-end pipeline reliability under real-world messy Excel inputs
+    - Provides a clear decision gate for whether the system can safely progress or requires remediation
+---
+
+### Prompt ID: P-036
+- **Author:** Mark / Claude
+- **Target:** ChatGPT
+- **Purpose:** E3 Audit Remediation — Apply QA-Identified Fixes and Align Contract, Fixtures, and Pipeline Stubs
+#### Prompt
+```
+Fed the codebase to Claude and it did a checkpoint review on it:
+Good — I can now see the actual code in your repo. This matches what we built together. Here is the E3 system audit against the real codebase.
+
+1. 🧠 Executive Summary
+⚠️ READY WITH MINOR FIXES
+The pipeline is architecturally sound and ready for T4. Two items need attention before proceeding: an alias drift between input_contract.md and mapping.json, and a missing real-world format fixture in the pipeline integration test. Neither requires code changes to the pipeline stages.
+
+2. ✅ What Is Strong
+Pipeline stage boundaries are clean. Every module has a single responsibility. No transformation logic in the orchestrator, no validation in the normalizer, no mapping in the parser. The docstring contracts at the top of each file are accurate and enforced.
+Header detection is contract-compliant. _detect_header_row() scans first N rows from config, stops at first match with ≥ 2 aliases, uses header_scan_rows from mapping.json. The confirmed Alpha Fund metadata pattern is covered in test_parser.py.
+ZIP preservation is correct. zfill(5) handles both string and integer inputs. pd.isna() early return prevents crashes on null values.
+Read-only worksheet double-iteration bug was caught and fixed. Rows are materialized once per sheet via list(sheet.iter_rows(...)) before any processing.
+PipelineError is well-structured. stage, error_type, and error_message as named attributes makes T4-4 API error responses straightforward to implement.
+df.copy() used consistently across all stages — no shared reference mutation between pipeline stages.
+_run_stage() wrapper ensures no exception can be swallowed — every failure wraps to PipelineError and re-raises immediately.
+
+3. 🔴 Critical Issues
+Alias drift between input_contract.md and mapping.json.
+The contract (section 3.1) and mapping.json do not match:
+FieldContract aliasesmapping.json aliasesDriftDonationAmountdonationamount, amount, gift_amount, donationamount, donationamount, donation_amount, gift_amountdonation missing from config; donation_amount undocumentedDonationDatedonationdate, giftdate, date, gift_dategiftdate, gift_date, donationdate, donation_date, datedonation_date undocumented in contractStatestate, stst, state, state_codestate_code undocumented in contract
+The fix is to update input_contract.md section 3.1 to include the additional aliases in mapping.json. The config has more aliases than the contract documents — the contract should reflect reality. This is a documentation fix only, no code changes needed.
+
+4. 🟡 Medium Risks
+Pipeline integration test uses header-in-row-1 fixture only. test_pipeline_integration_full_flow in test_pipeline.py uses a simple fixture with no metadata rows. The confirmed real-world Alpha Fund format (rows 1–3 metadata, row 4 header) is tested in test_parser.py in isolation but never end-to-end through the full pipeline. Add a second fixture variant to the integration test with metadata rows before the header.
+validator.py stub uses iterrows() — the slowest pandas iteration pattern, O(n) Python loop. Acceptable for MVP stub but must be replaced with vectorized operations in T4-1. Add a # TODO T4-1: replace with vectorized validation comment so it's not accidentally left in production.
+schema.py stub silently drops missing columns rather than failing. When T5-6 replaces it, the real implementation must fail loudly if required columns are absent. Document this gap with a comment in the stub.
+
+5. 🟢 Minor Issues
+from typing import Any in pipeline.py is imported but only used in _run_stage's return annotation. Python 3.12 handles this without the import — minor cleanup.
+test_placeholder.py still exists and serves no purpose now. Safe to remove once T4 is complete.
+__init__.py in app/processing/ is empty — correct, no changes needed.
+
+6. 🧪 Test Coverage Audit
+Well covered:
+
+Single and multi-sheet parsing — header row 1, offset row 3, offset row 5
+Metadata row handling — confirmed Alpha Fund pattern tested explicitly
+Alias mapping — exact, alias, case-insensitive, duplicates, missing fields
+All normalization rules — dates (4 formats + Excel serial), ZIP, amounts, strings
+Client injection — multi-sheet, whitespace, null edge cases
+Pipeline orchestration — execution order, stage chaining, failure propagation at every stage
+Upload endpoint — extension, MIME type, empty file, path traversal
+
+Missing:
+
+Pipeline integration test with metadata rows before header (real-world format)
+Pipeline integration test with multi-sheet workbook (two clients)
+Any test for donation alias (in contract, absent from mapping.json)
+End-to-end test confirming Instructions-style non-data sheet excluded through full pipeline
+
+Misleading:
+
+test_pipeline_integration_full_flow passes with a simple header-in-row-1 fixture — gives confidence about pipeline wiring but not about real-world file handling
+
+
+7. 📉 Contract vs Code Drift
+ItemContractCodeStatusdonation alias for DonationAmountDocumentedMissing from mapping.json❌donation_amount aliasNot documentedIn mapping.json⚠️donation_date aliasNot documentedIn mapping.json⚠️state_code aliasNot documentedIn mapping.json⚠️Header scan N rows from config✅✅✅Threshold ≥ 2 alias matches✅✅✅Client from sheet tab name only✅✅✅Metadata rows skipped✅✅✅ZIP as string, leading zeros preserved✅✅✅
+
+8. 🔧 Recommendations
+Fix 1 — Update input_contract.md section 3.1 to document all aliases currently in mapping.json. Add donation_amount, donation_date, state_code. Either add donation to mapping.json or remove it from the contract. Documentation fix only.
+Fix 2 — Add metadata-row fixture to test_pipeline_integration_full_flow — a second workbook using the Alpha Fund format (3 metadata rows before header) run through the full pipeline. Confirms the real-world format works end-to-end, not just in the parser.
+Fix 3 — Add # TODO T4-1: replace iterrows() with vectorized validation to validator.py stub.
+Fix 4 — Add # TODO T5-6: full implementation must fail loudly if required columns absent to schema.py stub.
+
+9. 🧠 Final Verdict
+⚠️ READY WITH MINOR FIXES
+Fix 1 (contract sync) and Fix 2 (integration test fixture) should be done before T4 begins. Both are 15-minute tasks. Fixes 3 and 4 are one-line comments that protect against future mistakes when stubs are replaced. None of these require any changes to the pipeline stage implementations themselves. The core system is correct and ready.
+please generate a prompt to instruct it to fix the flagged issues as a senior data engineer / lead projecgt manager
+```
+
+- **Summary of Response:**
+    - Generated a targeted remediation prompt instructing ChatGPT to address all issues identified in the E3 checkpoint audit while maintaining strict MVP and pipeline integrity constraints
+    - Focused on resolving alias drift between input_contract.md and mapping.json by synchronizing documentation with implemented configuration
+    - Requested addition of a realistic metadata-row integration test fixture to ensure end-to-end pipeline coverage of real-world Excel formats
+    - Instructed addition of explicit TODO markers in validator and schema stubs to prevent accidental architectural drift in future T4/T5 implementation phases
+    - Reinforced that no pipeline logic changes are required, only alignment, documentation correction, and test coverage improvements
+- **Impact:**
+    - Ensures consistency between system contract, configuration, and real implementation behavior before entering validation stage (T4)
+    - Reduces risk of production mismatch caused by undocumented or drifted alias definitions
+    - Improves test realism by enforcing full end-to-end coverage of metadata-heavy Excel ingestion patterns
+    - Strengthens maintainability by clearly marking future implementation boundaries in stubbed components
+    - Preserves architectural integrity while closing critical QA-identified gaps without disrupting MVP pipeline structure
+---
+
+### Prompt ID: P-037
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** E3 checkpoint stabilization and contract alignment fixes for pipeline integrity
+#### Prompt
+```
+# 🧠 Claude Code Prompt — E3 Checkpoint Fixes (Senior Data Engineer + Lead PM)
+
+You are acting as a **Senior Data Engineer + Lead Project Manager**.
+
+You are responsible for applying **ONLY the fixes identified in the E3 checkpoint review**.
+
+This is a **stability + alignment pass**, not a redesign.
+
+---
+
+# 🎯 Objective
+
+Bring the codebase into:
+
+> ✅ full alignment between input_contract.md, mapping.json, and test fixtures
+> ✅ improved integration test realism
+> ✅ future-safe MVP stubs for T4/T5 stages
+
+---
+
+# ⚠️ STRICT CONSTRAINTS
+
+You MUST:
+
+* ❌ NOT refactor pipeline architecture
+* ❌ NOT change stage ordering
+* ❌ NOT modify business logic behavior
+* ❌ NOT add new features
+* ❌ NOT expand scope beyond fixes listed below
+
+You MAY:
+
+* update documentation
+* update test fixtures
+* add missing test coverage
+* add TODO comments for future stages
+* make minimal config corrections
+
+---
+
+# 🔴 FIX #1 — CONTRACT ↔ CONFIG ALIGNMENT (CRITICAL)
+
+## Problem
+
+Mismatch between:
+
+* `/docs/input_contract.md`
+* `app/config/mapping.json`
+
+## Required Action
+
+You must reconcile alias definitions so they are **fully consistent and single-source-of-truth aligned**.
+
+---
+
+## Steps:
+
+### 1. Update `input_contract.md` section 3.1
+
+Ensure it includes ALL aliases currently in `mapping.json`, including:
+
+* donation_amount
+* donation_date
+* state_code
+* any other discovered aliases
+
+OR (if cleaner):
+
+* remove unused aliases from mapping.json instead
+
+👉 Choose ONE source of truth direction:
+
+* Contract drives config OR
+* Config drives contract (preferred if config is more complete)
+
+---
+
+## Acceptance Criteria
+
+* No alias exists in config that is not documented in contract
+* No alias exists in contract that is not used in config (unless explicitly deprecated)
+* Both files match exactly after update
+
+---
+
+# 🟡 FIX #2 — REALISTIC INTEGRATION TEST COVERAGE
+
+## Problem
+
+Integration test does NOT include real-world metadata pattern.
+
+---
+
+## Required Action
+
+Add a **new fixture + test path** that includes:
+
+### Fixture Requirements:
+
+* 3 metadata rows before header
+* header not in row 1
+* same Alpha Fund pattern already used in parser tests
+* full end-to-end pipeline execution
+
+---
+
+## Test Requirements:
+
+Update:
+
+text
+test_pipeline_integration_full_flow
+
+to include:
+
+* metadata-offset workbook
+* full pipeline execution (not parser-only)
+* validation of:
+
+  * clean_df correctness
+  * rejected_df correctness
+  * summary accuracy
+
+---
+
+## Acceptance Criteria
+
+* integration test covers real-world metadata header offset
+* pipeline passes without parser-only assumptions
+* counts remain deterministic
+
+---
+
+# 🟡 FIX #3 — FUTURE SAFETY COMMENT (T4-1)
+
+## File:
+
+`validator.py`
+
+Add:
+
+python
+# TODO T4-1: replace iterrows() with vectorized validation
+
+---
+
+## Rule
+
+* DO NOT change implementation
+* DO NOT optimize now
+* This is purely a forward-looking safeguard
+
+---
+
+# 🟡 FIX #4 — FUTURE SAFETY COMMENT (T5-6)
+
+## File:
+
+`schema.py`
+
+Add:
+
+python
+# TODO T5-6: enforce strict schema validation (fail if required columns missing)
+
+---
+
+## Rule
+
+* DO NOT change behavior (dropping columns stays for now)
+* ONLY add comment documenting future enforcement requirement
+
+---
+
+# 🧪 VALIDATION REQUIREMENTS
+
+After fixes, ensure:
+
+## 1. Test Suite Must Pass
+
+* all unit tests pass
+* all integration tests pass
+* no snapshot changes unless intentional and justified
+
+---
+
+## 2. No Behavioral Changes
+
+Confirm:
+
+* pipeline output unchanged (except improved coverage)
+* no stage reordering
+* no logic modifications in T2–T3 stages
+
+---
+
+## 3. Contract Alignment Achieved
+
+* input_contract.md and mapping.json are consistent
+* no hidden alias mismatches remain
+
+---
+
+# 🧠 ENGINEERING PRINCIPLE
+
+This is a:
+
+> “stability + alignment + realism pass”
+
+NOT a refactor.
+
+---
+
+# 🚫 DO NOT
+
+* redesign pipeline
+* optimize pandas usage
+* modify normalization logic
+* change parsing logic
+* introduce new abstractions
+* expand scope beyond listed fixes
+
+---
+
+# ✅ SUCCESS CRITERIA
+
+This task is complete when:
+
+* contract and mapping.json are fully aligned
+* integration test includes real metadata header scenario
+* future TODO markers exist in validator and schema modules
+* full test suite passes deterministically
+* pipeline behavior is unchanged and stable
+
+---
+
+# 🧠 FINAL NOTE
+
+This step ensures:
+
+> your system is not just correct in isolation, but correct under real-world Excel ingestion conditions.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Generated a tightly scoped E3 checkpoint fix prompt instructing Claude to reconcile contract/config drift, improve    integration test realism with metadata-offset fixtures, and add future-safe TODO annotations for T4/T5 while explicitly preventing any architectural or behavioral changes.
+
+- **Impact:**
+    - Restores single source of truth alignment between contract and configuration
+    - Improves end-to-end test realism for real-world Excel ingestion patterns
+    - Strengthens forward compatibility for upcoming validation and schema stages
+    - Ensures system stability without introducing regression or scope creep
+---

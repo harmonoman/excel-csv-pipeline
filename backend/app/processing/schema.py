@@ -23,6 +23,8 @@ def enforce_schema(df: pd.DataFrame) -> pd.DataFrame:
     Stub: selects only schema columns that exist in the DataFrame.
     Full implementation in T5-6 will enforce all columns are present.
     """
+    # TODO T5-6: enforce strict schema validation — fail loudly if required columns are missing
+    # Current stub silently drops missing columns, which masks upstream pipeline gaps.
     present = [col for col in OUTPUT_SCHEMA if col in df.columns]
     return df[present].reset_index(drop=True)
  

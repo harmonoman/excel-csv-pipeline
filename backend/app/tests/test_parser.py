@@ -1,27 +1,26 @@
 """
 Tests for app/processing/parser.py
- 
-TDD order:
-1. Write failing tests
-2. Implement minimal parser to pass
-3. Refactor
- 
-Parser responsibilities (ONLY):
+
+Parser responsibilities:
 - Read all sheets dynamically
 - Detect header row per sheet
 - Normalize column names (lowercase, strip)
+- Map each sheet's columns to canonical names BEFORE concatenation
 - Build DataFrame per sheet with _source_sheet column
 - Concatenate valid sheets into one DataFrame
- 
-Parser does NOT map columns, inject Client, or validate rows.
+
+Output columns are CANONICAL (First, Last, etc.) not source aliases.
+This is the key change from the original design — mapping now happens
+per-sheet inside the parser to correctly handle multi-sheet workbooks
+with different column aliases.
 """
 import logging
 import pytest
 import pandas as pd
 from app.tests.fixtures import build_workbook
 from app.processing.parser import parse_workbook
- 
- 
+
+
 # --- Shared config used across all tests ---
 MAPPING_CONFIG = {
     "header_scan_rows": 20,
@@ -36,14 +35,14 @@ MAPPING_CONFIG = {
         "DonationAmount": ["amount", "donationamount", "donation_amount", "gift_amount"],
     },
 }
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # Unit tests
 # ---------------------------------------------------------------------------
- 
+
 def test_single_sheet_header_row_1():
-    """Single sheet with header in row 1 is parsed correctly."""
+    """Single sheet with header in row 1 is parsed and mapped correctly."""
     wb = build_workbook([{
         "name": "Alpha Fund",
         "rows": [
@@ -52,20 +51,20 @@ def test_single_sheet_header_row_1():
             ["Jane", "Smith", "200.00", "2024-01-02"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert isinstance(result, pd.DataFrame)
     assert len(result) == 2
     assert "_source_sheet" in result.columns
     assert result["_source_sheet"].iloc[0] == "Alpha Fund"
-    assert "first" in result.columns
-    assert "last" in result.columns
-    # Verify data values — not just shape
-    assert result.iloc[0]["first"] == "John"
-    assert result.iloc[1]["first"] == "Jane"
- 
- 
+    # Columns are canonical after per-sheet mapping
+    assert "First" in result.columns
+    assert "Last" in result.columns
+    assert result.iloc[0]["First"] == "John"
+    assert result.iloc[1]["First"] == "Jane"
+
+
 def test_header_offset_row_3():
     """Header detected correctly when metadata rows precede it."""
     wb = build_workbook([{
@@ -77,15 +76,15 @@ def test_header_offset_row_3():
             ["John", "Doe", "100.00", "2024-01-01"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 1
-    assert "first" in result.columns
+    assert "First" in result.columns
     assert result["_source_sheet"].iloc[0] == "Alpha Fund"
-    assert result.iloc[0]["first"] == "John"
- 
- 
+    assert result.iloc[0]["First"] == "John"
+
+
 def test_header_offset_row_5():
     """Header detected correctly when offset is deeper (row 5)."""
     wb = build_workbook([{
@@ -99,17 +98,21 @@ def test_header_offset_row_5():
             ["Alice", "Johnson", "500.00"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 1
-    assert "first_name" in result.columns
+    assert "First" in result.columns
     assert result["_source_sheet"].iloc[0] == "Liberty PAC"
-    assert result.iloc[0]["first_name"] == "Alice"
- 
- 
-def test_multi_sheet_different_schemas():
-    """Multi-sheet workbook with different column names per sheet."""
+    assert result.iloc[0]["First"] == "Alice"
+
+
+def test_multi_sheet_different_aliases():
+    """
+    Multi-sheet workbook with DIFFERENT column aliases per sheet.
+    Per-sheet mapping ensures both sheets produce canonical column names
+    before concatenation — no NaN leakage.
+    """
     wb = build_workbook([
         {
             "name": "Alpha Fund",
@@ -121,23 +124,29 @@ def test_multi_sheet_different_schemas():
         {
             "name": "Liberty PAC",
             "rows": [
-                ["fname", "lname", "gift_amount", "city"],
-                ["Jane", "Smith", "200.00", "Nashville"],
+                ["fname", "lname", "gift_amount"],
+                ["Jane", "Smith", "200.00"],
             ],
         },
     ])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 2
     alpha_rows = result[result["_source_sheet"] == "Alpha Fund"]
     liberty_rows = result[result["_source_sheet"] == "Liberty PAC"]
     assert len(alpha_rows) == 1
     assert len(liberty_rows) == 1
-    assert alpha_rows.iloc[0]["first"] == "John"
-    assert liberty_rows.iloc[0]["fname"] == "Jane"
- 
- 
+
+    # Both use canonical names — no NaN from alias mismatch
+    assert alpha_rows.iloc[0]["First"] == "John"
+    assert liberty_rows.iloc[0]["First"] == "Jane"
+
+    # No NaN in First or Last columns
+    assert result["First"].notna().all()
+    assert result["Last"].notna().all()
+
+
 def test_multi_sheet_different_header_positions():
     """Multi-sheet workbook where each sheet has header at a different row."""
     wb = build_workbook([
@@ -158,15 +167,17 @@ def test_multi_sheet_different_header_positions():
             ],
         },
     ])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 2
     assert set(result["_source_sheet"].unique()) == {"Sheet A", "Sheet B"}
- 
- 
-def test_column_names_normalized_lowercase_stripped():
-    """Column names are lowercased and whitespace-stripped after header detection."""
+    # Both sheets produce canonical First column
+    assert result["First"].notna().all()
+
+
+def test_column_names_normalized_and_mapped():
+    """Column names are lowercased, stripped, then mapped to canonical names."""
     wb = build_workbook([{
         "name": "Alpha Fund",
         "rows": [
@@ -174,16 +185,18 @@ def test_column_names_normalized_lowercase_stripped():
             ["John", "Doe", "100.00"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
-    assert "first" in result.columns
-    assert "last" in result.columns
-    assert "amount" in result.columns
+
+    # Canonical names present
+    assert "First" in result.columns
+    assert "Last" in result.columns
+    assert "DonationAmount" in result.columns
+    # Source aliases must not appear
     assert "  First  " not in result.columns
-    assert "  Last  " not in result.columns
- 
- 
+    assert "first" not in result.columns
+
+
 def test_source_sheet_column_present_and_correct():
     """_source_sheet column is present and reflects the originating sheet name."""
     wb = build_workbook([{
@@ -193,40 +206,36 @@ def test_source_sheet_column_present_and_correct():
             ["John", "Doe", "37201"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert "_source_sheet" in result.columns
     assert result["_source_sheet"].iloc[0] == "Heritage Trust"
- 
- 
+
+
 def test_metadata_row_does_not_trigger_header_detection():
-    """
-    Metadata rows containing client labels must not be mistaken for headers.
-    'Client: Alpha Fund' and 'Prepared for internal review' contain no
-    recognized aliases and must be skipped over during header detection.
-    """
+    """Metadata rows must not be mistaken for headers or data."""
     wb = build_workbook([{
         "name": "Alpha Fund",
         "rows": [
-            ["Prepared for internal review", None, None],
-            ["Client: Alpha Fund", None, None],
+            ["Prepared for internal review", None, None, None],
+            ["Client: Alpha Fund", None, None, None],
             ["First", "Last", "Amount", "GiftDate"],
             ["John", "Doe", "100.00", "2024-01-01"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
-    # Must have exactly 1 data row — not 3 (metadata rows not treated as data)
+
+    # Exactly 1 data row — metadata rows not treated as data
     assert len(result) == 1
-    assert result.iloc[0]["first"] == "John"
- 
- 
+    assert result.iloc[0]["First"] == "John"
+
+
 # ---------------------------------------------------------------------------
 # Edge case tests
 # ---------------------------------------------------------------------------
- 
+
 def test_empty_sheet_skipped():
     """Sheet with header but no data rows is skipped without error."""
     wb = build_workbook([
@@ -244,13 +253,13 @@ def test_empty_sheet_skipped():
             ],
         },
     ])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 1
     assert result["_source_sheet"].iloc[0] == "Good Sheet"
- 
- 
+
+
 def test_sheet_with_no_detectable_header_excluded(caplog):
     """Sheet with no recognizable header is excluded and a warning is logged."""
     wb = build_workbook([
@@ -269,15 +278,15 @@ def test_sheet_with_no_detectable_header_excluded(caplog):
             ],
         },
     ])
- 
+
     with caplog.at_level(logging.WARNING, logger="app.processing.parser"):
         result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 1
     assert result["_source_sheet"].iloc[0] == "Good Sheet"
     assert "Bad Sheet" in caplog.text
- 
- 
+
+
 def test_partial_match_below_threshold_excluded():
     """Sheet with only 1 alias match (below threshold of 2) is excluded."""
     wb = build_workbook([{
@@ -287,12 +296,12 @@ def test_partial_match_below_threshold_excluded():
             ["John", "x", "y"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert result.empty
- 
- 
+
+
 def test_partial_match_at_threshold_accepted():
     """Sheet with exactly 2 alias matches (at threshold) is accepted."""
     wb = build_workbook([{
@@ -302,34 +311,35 @@ def test_partial_match_at_threshold_accepted():
             ["John", "Doe", "x"],
         ],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert len(result) == 1
-    assert result.iloc[0]["first"] == "John"
- 
- 
+    assert result.iloc[0]["First"] == "John"
+
+
 def test_completely_empty_workbook():
     """Workbook with no valid sheets returns empty DataFrame without error."""
     wb = build_workbook([{
         "name": "Empty",
         "rows": [],
     }])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
+
     assert isinstance(result, pd.DataFrame)
     assert result.empty
- 
- 
+
+
 # ---------------------------------------------------------------------------
 # Integration test
 # ---------------------------------------------------------------------------
- 
+
 def test_multi_sheet_mixed_templates_integration():
     """
     Integration: multi-sheet workbook with mixed templates, metadata rows,
-    and different header positions produces a single correct DataFrame.
+    different header positions, and different aliases produces a single
+    correct DataFrame with canonical column names and no NaN leakage.
     """
     wb = build_workbook([
         {
@@ -357,26 +367,29 @@ def test_multi_sheet_mixed_templates_integration():
             ],
         },
     ])
- 
+
     result = parse_workbook(wb, MAPPING_CONFIG)
- 
-    # Instructions sheet has no valid header — excluded
+
+    # Instructions sheet excluded
     assert set(result["_source_sheet"].unique()) == {"Alpha Fund", "Liberty PAC"}
     assert len(result) == 3
- 
+
     # All rows have _source_sheet
     assert result["_source_sheet"].notna().all()
- 
-    # Column names are normalized
+
+    # All columns are canonical
     for col in result.columns:
         if col != "_source_sheet":
-            assert col == col.lower().strip()
- 
-    # Verify data values
+            assert col[0].isupper() or col == "_source_sheet", f"Non-canonical column: {col}"
+
+    # No NaN in key fields from alias mismatch
+    assert result["First"].notna().all()
+    assert result["Last"].notna().all()
+
+    # Data values correct
     alpha_rows = result[result["_source_sheet"] == "Alpha Fund"]
     liberty_rows = result[result["_source_sheet"] == "Liberty PAC"]
     assert len(alpha_rows) == 2
     assert len(liberty_rows) == 1
-    assert alpha_rows.iloc[0]["first"] == "John"
-    assert liberty_rows.iloc[0]["fname"] == "Alice"
- 
+    assert alpha_rows.iloc[0]["First"] == "John"
+    assert liberty_rows.iloc[0]["First"] == "Alice"

@@ -1,8 +1,8 @@
 # Input Contract — Donor Bureau Excel Pipeline
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Status:** MVP  
-**Last updated:** 2026-04-09  
+**Last updated:** 2026-04-10  
 
 This document is the **source of truth** for the expected structure of incoming Excel workbooks. It includes both the formal input contract (specification) and the **operational/testable assumptions** that the pipeline relies on.  
 
@@ -66,10 +66,10 @@ All column names are **case-insensitive**; whitespace trimmed before mapping.
 | `Last` | last, lastname, last_name, lname |
 | `Address1` | address1, address, addr |
 | `City` | city |
-| `State` | state, st |
+| `State` | state, st, state_code |
 | `Zip` | zip, zip_code, zipcode |
-| `DonationDate` | donationdate, giftdate, date, gift_date |
-| `DonationAmount` | donationamount, amount, gift_amount, donation |
+| `DonationDate` | donationdate, giftdate, date, gift_date, donation_date |
+| `DonationAmount` | donationamount, amount, gift_amount, donation_amount |
 | `Client` | **Derived from sheet tab name — never a source column** |
 
 ### 3.2 Unmapped Columns
