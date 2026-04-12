@@ -9152,3 +9152,414 @@ This review should be strict, practical, and production-minded.
     - Established a high-quality QA standard for infrastructure-level components
     - Reduced risk of downstream failures in file handling and API layers
     - Ensured consistency and thoroughness in future code reviews for the project
+---
+
+### Prompt ID: P-060
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for deterministic CSV writer
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T5-1 - clean_donations.csv writer: 
+
+Description 
+Write clean_df to CSV in exact schema column order. 
+UTF-8, no BOM. 
+No index column. 
+Deterministic column ordering enforced. 
+
+Acceptance criteria 
+Column order matches spec exactly 
+Same input always produces identical output 
+No pandas index column in output 
+Rows sorted deterministically (e.g., by original order or stable index) 
+
+Test plan 
+Unit test: 
+read output CSV and assert columns match schema list exactly. 
+Run twice, diff outputs.
+```
+
+- **Summary of Response:**
+    - Generated a structured implementation prompt for Claude aligned to MVP and TDD approach
+    - Emphasized deterministic output (column order, row order, encoding, no index)
+    - Included explicit acceptance criteria mapping to test assertions
+    - Reinforced repeatability via idempotent output and diff-based validation
+- **Impact:**
+    - Enabled consistent and testable CSV output generation step
+    - Locked down schema enforcement and reproducibility requirements
+    - Provided clear implementation guidance for downstream data pipeline reliability
+---
+
+### Prompt ID: P-061
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Implement deterministic clean CSV writer module
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-1 Implementation (Clean CSV Writer)
+
+You are acting as a Lead Data Engineer working within a test-driven, MVP-focused data pipeline.
+
+Your task is to implement:
+
+T5-1 — clean_donations.csv writer
+
+This is part of the Output Generation (T5) layer and depends on:
+
+✅ T5-6 (schema enforcement — already implemented)
+✅ T5-4 (deterministic file naming — already implemented)
+🎯 Objective
+
+Write the clean_df DataFrame to a CSV file that is:
+
+Schema-perfect
+Deterministic
+Warehouse-ready
+
+This file is the primary deliverable of the entire pipeline.
+
+⚠️ Critical Context (Do NOT Violate)
+clean_df has already passed:
+validation (T4)
+schema enforcement (T5-6)
+
+👉 This writer must NOT transform data — only serialize it.
+
+Any schema issues here = upstream bug
+This layer must act as a pure output boundary
+📦 Implementation Requirements
+1. Create a Dedicated Module
+
+Create:
+
+app/output/writer.py
+
+Include a function like:
+
+def write_clean_csv(clean_df: pd.DataFrame, output_path: Path) -> Path:
+2. Enforce Deterministic Output
+
+You MUST ensure:
+
+✅ Column Order
+EXACTLY matches:
+[
+    "First",
+    "Last",
+    "Address1",
+    "City",
+    "State",
+    "Zip",
+    "DonationDate",
+    "DonationAmount",
+    "Client",
+]
+Do NOT rely on DataFrame order implicitly
+Explicitly reindex columns before writing
+✅ Row Order (Deterministic)
+Preserve original row order from pipeline
+OR enforce stable ordering (if needed)
+
+⚠️ Do NOT introduce randomness or sorting unless explicitly required
+
+✅ Encoding + Format
+Encoding: "utf-8" (NO BOM)
+index=False
+No extra whitespace or formatting artifacts
+3. Integrate File Naming (T5-4)
+The function should accept a fully resolved output_path
+DO NOT generate filenames here
+DO NOT embed timestamp logic here
+
+👉 Separation of concerns is critical
+
+4. Output Behavior
+File must be written to disk
+Function returns the Path to the written file
+Overwriting should NOT occur (handled upstream via naming)
+🧪 Test-Driven Development (MANDATORY)
+
+Create tests in:
+
+app/tests/test_writer.py
+Unit Test 1 — Column Order Enforcement
+Create DataFrame with shuffled column order
+Write CSV
+Read it back
+Assert:
+list(df.columns) == EXPECTED_SCHEMA
+Unit Test 2 — No Index Column
+Write CSV
+Open raw file
+Assert:
+No extra unnamed index column
+First column is "First"
+Unit Test 3 — Deterministic Output
+Write same DataFrame twice to two files
+Compare file contents (string or bytes)
+Assert they are identical
+Unit Test 4 — Encoding
+Write file
+Read raw bytes
+Confirm:
+UTF-8 encoding
+No BOM (\ufeff should NOT exist)
+Unit Test 5 — Empty DataFrame (Edge Case)
+Input: valid schema, zero rows
+Output:
+CSV exists
+Only header row present
+🚫 Explicit Non-Goals
+
+Do NOT:
+
+Validate schema (handled in T5-6)
+Modify data values
+Add logging (T5-5)
+Handle rejected_df (T5-2)
+Generate filenames (T5-4)
+Return HTTP responses (T5-3)
+🧠 Design Principles
+Pure function mindset → input DataFrame → output file
+Determinism > convenience
+Strict schema adherence
+Minimal logic, maximum reliability
+✅ Acceptance Criteria Checklist
+
+Before finishing, confirm:
+
+ Column order EXACT match
+ No index column in output
+ UTF-8 encoding, no BOM
+ Deterministic output across runs
+ Function returns file path
+ Tests pass via uv run pytest
+🧠 Final Instruction
+
+Implement this cleanly, minimally, and test-first.
+
+This file is the contract boundary with the data warehouse — treat it as production-critical even at MVP.
+```
+
+- **Summary of Response:**
+    - Defined a dedicated writer module with a pure function for CSV serialization
+    - Enforced strict column ordering and UTF-8 (no BOM) output requirements
+    - Implemented comprehensive unit tests covering determinism, encoding, and edge cases
+    - Maintained strict separation of concerns with no transformation or naming logic
+- **Impact:**
+    - Established a reliable, deterministic output boundary for warehouse ingestion
+    - Reduced risk of downstream data issues by enforcing schema consistency at write time
+    - trengthened TDD discipline with clearly defined validation of output behavior
+---
+
+### Prompt ID: P-062
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Production-grade QA review of CSV writer layer (clean + rejected outputs)
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-1 + T5-2 QA / Senior Test Engineer Review
+
+You are acting as a Senior QA Engineer + Lead Data Engineer reviewer.
+
+Your task is to perform a strict production-grade code review of the implementation for:
+
+T5-1 — clean_donations.csv writer
+T5-2 — rejected_rows.csv writer (already implemented)
+
+These are critical output layer components in the Donor Bureau pipeline. They represent the final data contract with downstream systems (warehouse + download API).
+
+🎯 Review Objectives
+
+You must evaluate BOTH writers for:
+
+Correctness
+Determinism
+Schema integrity
+Edge case handling
+Production safety (MVP standard, but strict)
+🧩 Context You Must Assume
+
+The pipeline guarantees:
+
+clean_df is already:
+validated (T4)
+schema-enforced (T5-6)
+fully normalized
+rejected_df contains:
+original fields
+rejection_reason column (ALWAYS present)
+
+👉 These writers MUST NOT:
+
+validate data
+transform data
+fix schema issues
+perform business logic
+
+They are pure serialization layers
+
+📦 T5-1 Review Scope (clean_donations.csv writer)
+
+Validate:
+
+1. Schema Enforcement
+EXACT column order:
+First, Last, Address1, City, State, Zip, DonationDate, DonationAmount, Client
+No missing columns
+No extra columns
+2. Deterministic Output
+Same input → identical CSV output
+No randomness
+Stable ordering preserved
+3. CSV Integrity
+UTF-8 encoding (NO BOM)
+index=False
+No pandas index leakage
+No formatting artifacts
+4. Separation of Concerns
+Writer does NOT:
+rename columns
+validate data
+modify DataFrame
+Only serializes
+5. Edge Cases
+Empty DataFrame:
+header still written
+no crash
+6. Test Coverage Expectations
+
+Verify presence of:
+
+Column order test
+Deterministic output test
+Encoding test (no BOM)
+Empty dataframe test
+📦 T5-2 Review Scope (rejected_rows.csv writer)
+
+Validate:
+
+1. Schema Integrity
+Must include ALL original columns
+Must append:
+rejection_reason
+Column must ALWAYS exist
+2. Empty Rejection Handling
+If no rejected rows:
+file STILL created
+header STILL present
+valid CSV structure
+3. Data Preservation
+Original row data must remain unchanged
+rejection_reason must NOT be overwritten or dropped
+4. Determinism
+Same rejected input → identical output
+Stable ordering preserved
+5. CSV Output Rules
+UTF-8 encoding (NO BOM)
+No index column
+No mutation of source DataFrame
+6. Edge Cases
+0 rejected rows
+all rows rejected
+mixed valid/invalid dataset
+7. Test Coverage Expectations
+
+Verify presence of:
+
+empty rejection file test
+multi-reason rejection test
+schema integrity test
+deterministic output test
+🔍 Cross-Cutting Review (T5-1 vs T5-2)
+
+You MUST compare both implementations for:
+
+1. Architectural Consistency
+Are both writers implemented using the same pattern?
+Are responsibilities consistent?
+Is shared logic duplicated incorrectly?
+2. File Handling Consistency
+Same encoding rules
+Same index=False behavior
+Same output directory strategy
+Same naming integration assumptions (T5-4)
+3. Integration Readiness (T5-3 dependency)
+
+Ensure outputs are:
+
+safe for download endpoints
+deterministic in filename pairing
+compatible with file naming layer
+🚨 Critical Failure Conditions (Must Flag)
+
+Immediately flag if ANY of the following exist:
+
+Column order is not strictly enforced in T5-1
+rejection_reason is optional or missing in T5-2
+index column appears in output
+nondeterministic file output across runs
+silent schema mutation in writer layer
+encoding issues (BOM present)
+empty rejection file not handled correctly
+🧪 Test Quality Review
+
+Evaluate whether tests are:
+
+deterministic
+isolated
+not relying on real filesystem state
+covering edge cases explicitly
+asserting file contents (not just function calls)
+📊 Output Format
+
+Return review in this structure:
+
+1. Executive Summary
+Is this production-ready for MVP?
+2. ✅ What Is Strong
+Key strengths in implementation
+3. 🔴 Critical Issues (Must Fix Before Merge)
+Data loss risks
+schema violations
+nondeterminism
+missing rejection handling
+4. 🟡 Medium Risks
+structural improvements
+maintainability concerns
+5. 🟢 Minor Issues
+naming, style, clarity
+6. 🧪 Test Coverage Gaps
+missing or weak tests
+edge cases not covered
+7. 🔧 Required Fixes
+actionable fixes
+8. 🧠 Final Verdict
+
+Choose one:
+
+✅ READY
+⚠️ READY WITH MINOR FIXES
+❌ NOT READY
+⚠️ Important Context
+This is MVP, but:
+Output layer correctness is non-negotiable
+These files are the final truth before warehouse ingestion
+🚫 Do NOT
+Do NOT rewrite code
+Do NOT redesign architecture
+Do NOT suggest future enhancements beyond MVP scope
+Focus only on correctness, determinism, and safety
+```
+
+- **Summary of Response:**
+    - Defined a strict senior QA / lead data engineering review prompt for validating CSV writer components in a donor ingestion pipeline
+    - Established detailed evaluation criteria for correctness, determinism, schema integrity, and edge-case handling across clean and rejected outputs
+    - Introduced explicit cross-cutting consistency checks between output writers and enforced MVP-level production safety constraints
+- **Impact:**
+    - Standardized QA expectations for final-layer data export components before warehouse ingestion
+    - Strengthened enforcement of deterministic, schema-safe output behavior across pipeline writers
+    - Created a reusable production-grade review template for validating data export logic in similar ingestion systems
