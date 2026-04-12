@@ -9563,3 +9563,470 @@ Focus only on correctness, determinism, and safety
     - Standardized QA expectations for final-layer data export components before warehouse ingestion
     - Strengthened enforcement of deterministic, schema-safe output behavior across pipeline writers
     - Created a reusable production-grade review template for validating data export logic in similar ingestion systems
+---
+
+### Prompt ID: P-063
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate implementation prompt for synchronous file upload/download API design
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T5-3 - Download response + summary:
+
+Description
+POST /upload processes the file synchronously and returns a JSON response containing summary statistics and download URLs for generated CSV files. Processing completes before the response is returned.
+
+Response structure:
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "/download/{clean_filename}",
+  "rejected_file": "/download/{rejected_filename}"
+}
+A separate GET /download/{filename} endpoint serves generated CSV files from the temp/output directory.
+
+Acceptance criteria
+POST /upload returns 200 only after processing completes
+Response JSON strictly matches defined schema
+total_rows = clean_rows + rejected_rows
+Download URLs are valid and return correct files
+GET /download/{filename} returns correct file with 200
+GET /download/{invalid_filename} returns 404
+Files returned match contents generated during processing
+Assumptions
+Processing is synchronous for MVP (no background jobs)
+Files are stored temporarily on local disk
+Filenames are unique per upload (no collisions)
+Files persist long enough for user to download (no immediate cleanup)
+Test plan
+Integration test: upload valid Excel → assert 200 response → validate JSON schema and counts
+Integration test: download clean_file → verify schema + row count
+Integration test: download rejected_file → verify rejection_reason column
+Integration test: invalid filename → expect 404
+Integration test: repeated identical upload → consistent counts and outputs
+```
+
+- **Summary of Response:**
+    - Generated a structured Claude implementation prompt defining a synchronous file upload pipeline with explicit API contracts
+    - Specified required endpoints for /upload and /download/{filename} with strict response schema enforcement
+    - Included acceptance criteria and integration test scenarios covering validation, file integrity, and error handling
+- **Impact:**
+    - Locked in a synchronous MVP architecture for file processing and delivery
+    - Defined strict API response contract for downstream consistency
+    - Established a comprehensive integration testing strategy for upload/download lifecycle validation
+---
+
+### Prompt ID: P-064
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** FastAPI orchestration layer for pipeline output + secure download endpoint with TDD
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-3 Implementation (Download API + Summary Response)
+
+You are acting as a Lead Data Engineer implementing a production-grade (MVP scope) API layer for the Donor Bureau pipeline.
+
+Your task is to implement:
+
+T5-3 — Download response + summary
+
+This ticket connects the processing pipeline (T1–T4) with the output layer (T5-1, T5-2, T5-4) and exposes results to the user via FastAPI.
+
+🎯 Objective
+
+Extend the existing /upload endpoint to:
+
+Run the full pipeline synchronously
+Write output CSV files (already implemented in T5-1 and T5-2)
+Return a structured JSON response containing:
+processing summary
+download links for generated files
+
+Also implement:
+
+GET /download/{filename}
+
+to serve generated CSV files.
+
+⚠️ Critical Context (DO NOT VIOLATE)
+
+You MUST assume:
+
+Pipeline already exists:
+run_pipeline(df, config) returns:
+clean_df
+rejected_df
+summary
+Output writers already exist:
+T5-1 → clean CSV writer
+T5-2 → rejected CSV writer
+T5-4 → deterministic file naming
+
+👉 This ticket ONLY orchestrates and exposes results.
+
+📦 Implementation Requirements
+1. Update /upload Endpoint
+Must now:
+Accept .xlsx upload (already implemented in T2-1)
+Run full pipeline synchronously
+Generate output files using:
+clean writer (T5-1)
+rejected writer (T5-2)
+naming utility (T5-4)
+Return Response MUST match EXACT schema:
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "/download/{clean_filename}",
+  "rejected_file": "/download/{rejected_filename}"
+}
+Hard Rules:
+total_rows = clean_rows + rejected_rows MUST hold
+Response is returned ONLY after full processing completes
+No async/background processing (MVP constraint)
+No extra metadata fields allowed
+2. Implement File Serving Endpoint
+
+Create:
+
+GET /download/{filename}
+Requirements:
+Serves files from local output directory
+Returns:
+200 with file content if exists
+404 if file does not exist
+Security constraints:
+Prevent path traversal (../)
+Only allow safe filenames
+Validate filename strictly before file access
+3. File Storage Assumptions
+Files stored locally in a temporary output directory
+Filenames are guaranteed unique (T5-4 handles this)
+No cloud storage or persistence layer required
+🧪 Test-Driven Development (MANDATORY)
+
+Create or extend tests using httpx + pytest.
+
+1. Upload Integration Test (Happy Path)
+Upload valid .xlsx
+Assert:
+HTTP 200
+JSON schema matches exactly
+total_rows = clean + rejected
+2. Download Clean File Test
+Use returned clean_file path
+Assert:
+HTTP 200
+CSV schema matches expected
+Row count correct
+3. Download Rejected File Test
+Assert:
+rejection_reason column exists
+rows preserved correctly
+4. Invalid File Test
+Upload .csv or malformed file
+Assert:
+HTTP 400
+meaningful error message
+5. Invalid Download Test
+
+Call:
+
+GET /download/does_not_exist.csv
+Assert:
+HTTP 404
+6. Repeat Upload Determinism Test
+Upload same file twice
+Assert:
+different filenames (T5-4 behavior)
+identical row counts and outputs
+🧠 Design Requirements
+Separation of Concerns
+
+Ensure clear layering:
+
+Layer	Responsibility
+API	request/response only
+Pipeline	data processing
+Writers	file output
+Naming	file naming
+Download endpoint	file retrieval
+Error Handling
+Pipeline errors → return structured 400
+System errors → 500
+Validation errors handled upstream (T4)
+Security Requirements
+No arbitrary file access
+Sanitize filename input
+Prevent directory traversal attacks
+🚨 Critical Acceptance Criteria Checklist
+
+Before completion, ensure:
+
+ /upload returns correct schema ONLY
+ Processing is fully synchronous
+ Clean + rejected files are written correctly
+ /download/{filename} works securely
+ 404 returned for invalid files
+ total_rows = clean + rejected always holds
+ No schema drift in API response
+🧪 MVP Constraints
+No background jobs
+No message queues
+No cloud storage
+No auth layer
+Local filesystem only
+🚫 Do NOT
+Do NOT modify pipeline logic (T1–T4)
+Do NOT redesign writers (T5-1 / T5-2)
+Do NOT introduce async processing
+Do NOT add extra response fields
+Do NOT introduce external storage systems
+🧠 Final Instruction
+
+This ticket is the first user-facing product surface of the system.
+
+It must be:
+
+predictable
+deterministic
+secure
+test-covered
+minimal but production-safe
+
+Build it exactly to spec, with strong TDD discipline.
+```
+
+- **Summary of Response:**
+    - Implemented FastAPI orchestration layer updating /upload to run synchronous pipeline execution and return strict JSON schema with clean/rejected file links
+    - Added secure /download/{filename} endpoint with filename validation, path traversal protection, and 404 handling
+    - Created/extended pytest + httpx test suite covering upload flow, download validation, error cases, and deterministic re-upload behavior
+- **Impact:**
+    - Established first user-facing API surface for the Donor Bureau ingestion system
+    - Enforced strict separation of concerns between pipeline, writers, naming, and API layers
+    - Introduced secure file serving + end-to-end test coverage as production gate for MVP readiness
+---
+
+### Prompt ID: P-065
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Senior QA / Lead Data Engineer review of FastAPI upload/download API (T5-3 integration layer)
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-3 QA / Senior Test Engineer Review
+
+You are acting as a Senior QA Engineer + Lead Data Engineer reviewer.
+
+Your task is to perform a strict, production-grade code review of the implementation for:
+
+T5-3 — Download response + summary (FastAPI upload + download endpoints)
+
+This is the first user-facing API surface of the Donor Bureau system and connects:
+
+ingestion (T2)
+processing pipeline (T1–T4)
+output generation (T5-1, T5-2, T5-4)
+🎯 Review Objectives
+
+Evaluate the implementation for:
+
+API correctness
+contract fidelity
+determinism
+file safety/security
+integration correctness
+test coverage completeness
+
+This is a critical integration boundary layer.
+
+📦 Functional Scope Under Review
+1. POST /upload
+
+Must:
+
+Accept .xlsx
+Run full pipeline synchronously
+Generate:
+clean CSV (T5-1)
+rejected CSV (T5-2)
+deterministic filenames (T5-4)
+Return strict JSON response:
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "/download/{clean_filename}",
+  "rejected_file": "/download/{rejected_filename}"
+}
+2. GET /download/{filename}
+
+Must:
+
+Serve files from local output directory
+Return:
+200 → file exists
+404 → file missing
+
+Must enforce:
+
+path traversal protection
+filename sanitization safety
+no arbitrary file access
+🔍 Review Areas
+1. API Contract Correctness (CRITICAL)
+
+Verify:
+
+Response schema matches EXACT structure
+No extra fields added
+No missing fields
+No type inconsistencies
+total_rows = clean_rows + rejected_rows always enforced
+2. Pipeline Integration Correctness
+
+Ensure:
+
+/upload correctly calls full pipeline
+clean_df and rejected_df are correctly passed to writers
+T5-1 / T5-2 outputs are actually persisted
+T5-4 naming is used correctly (no duplication or reimplementation)
+3. Determinism & Consistency
+
+Check:
+
+Same input → same:
+counts
+outputs
+Repeated uploads:
+produce different filenames (T5-4)
+identical data outputs
+No hidden randomness in API layer
+4. File Handling Safety (HIGH RISK)
+
+For /download/{filename} verify:
+
+No directory traversal vulnerability (../, /etc/passwd, etc.)
+Only allowed files served
+Files restricted to output directory
+Proper 404 handling for missing files
+5. Error Handling (SYSTEM vs VALIDATION)
+
+Verify strict separation:
+
+System Errors (must return HTTP 400/500)
+corrupted file
+unreadable Excel
+pipeline crash
+missing dependencies
+Validation Errors
+MUST still return 200
+rejected rows included in response/output
+
+Ensure this separation is correctly implemented.
+
+6. File Output Integrity
+
+Confirm:
+
+clean CSV uses correct schema (T5-6 enforcement)
+rejected CSV includes rejection_reason always
+UTF-8 encoding preserved
+no pandas index leakage
+files exist at expected paths after upload
+7. Test Coverage Review (CRITICAL)
+
+Verify existence and quality of tests:
+
+Required Integration Tests
+valid upload → correct response schema
+download clean file → correct schema + row counts
+download rejected file → rejection_reason validated
+invalid file upload → 400 response
+invalid filename download → 404 response
+repeated upload → deterministic behavior
+Test Quality Checks
+Uses real FastAPI test client (httpx)
+No mocking of core pipeline (except necessary boundaries)
+Assertions validate file contents (not just status codes)
+Deterministic and repeatable
+8. Architecture Review
+
+Ensure proper separation:
+
+Layer	Responsibility
+FastAPI routes	orchestration only
+pipeline	data processing
+writers	CSV output
+naming utility	filename generation
+download endpoint	file serving
+
+Flag any leakage of responsibilities.
+
+🚨 Critical Failure Conditions
+
+Immediately FAIL review if:
+
+API response schema is not exact
+file paths are insecure or unsanitized
+clean/rejected counts are incorrect
+pipeline logic is embedded in API layer
+download endpoint allows arbitrary file access
+missing integration test coverage for full flow
+🧪 Output Format
+
+Return review in:
+
+1. Executive Summary
+Is this MVP production-ready?
+2. ✅ What Is Strong
+Positive implementation qualities
+3. 🔴 Critical Issues (Must Fix Before Merge)
+Security issues
+schema violations
+incorrect integration
+broken determinism
+4. 🟡 Medium Risks
+maintainability concerns
+structural improvements
+5. 🟢 Minor Issues
+naming, style, clarity
+6. 🧪 Test Coverage Gaps
+missing tests
+weak assertions
+missing edge cases
+7. 🔧 Required Fixes
+actionable fixes only
+8. 🧠 Final Verdict
+
+Choose one:
+
+✅ READY
+⚠️ READY WITH MINOR FIXES
+❌ NOT READY
+⚠️ Important Context
+This is MVP, but:
+This is the first real user-facing API contract
+correctness > performance
+security > convenience
+🚫 Do NOT
+Do NOT rewrite code
+Do NOT redesign architecture
+Do NOT add new features
+Focus strictly on correctness, safety, and test coverage
+
+This review should be strict, adversarial, and production-minded.
+```
+
+- **Summary of Response:**
+    - Defines a strict QA + senior data engineering review framework for the T5-3 FastAPI upload/download endpoints
+    - Enforces API contract validation, determinism, file safety, and correct pipeline integration
+    - Specifies required test coverage and separation of concerns across API, pipeline, and file layers
+    - Provides structured review output format and explicit failure conditions for production readiness gate
+- **Impact:**
+    - Establishes a hard production-quality gate for the first user-facing API layer in the Donor Bureau system
+    - Ensures security, correctness, and deterministic behavior are enforced before merge
+    - Standardizes QA expectations for integration testing and FastAPI contract compliance

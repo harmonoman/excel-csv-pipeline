@@ -3,7 +3,8 @@ main.py — FastAPI application entry point.
 
 Responsibilities:
 - Startup config validation
-- File upload endpoint with pipeline execution
+- File upload endpoint with full pipeline execution and CSV output
+- File download endpoint for generated CSVs
 - Centralized exception handling (T4-4)
 
 Error classification:
@@ -14,15 +15,17 @@ Error classification:
 import io
 import logging
 import os
-import uuid
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.config.loader import ConfigValidationError, load_mapping_config
+from app.output.writer import write_clean_csv, write_rejected_csv
 from app.processing.parser import parse_workbook
 from app.processing.pipeline import PipelineError, run_pipeline
+from app.utils.file_naming import generate_output_filenames
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,13 @@ except ConfigValidationError as e:
 # --- Constants ---
 ALLOWED_EXTENSION = ".xlsx"
 ALLOWED_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-DEFAULT_UPLOAD_DIR = "/tmp/donor-bureau/uploads"
+# DEFAULT_UPLOAD_DIR is intentionally not used — raw uploads are processed
+# in-memory (BytesIO) and not persisted to disk. Reserved for future use
+# if raw upload persistence is added post-MVP.
+DEFAULT_OUTPUT_DIR = "/tmp/donor-bureau/outputs"
+
+# Safe filename pattern — only letters, digits, underscores, hyphens, dots
+_SAFE_FILENAME_RE = re.compile(r'^[a-zA-Z0-9_\-\.]+$')
 
 # --- App ---
 app = FastAPI(
@@ -104,14 +113,14 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
 # Helpers
 # ===========================================================================
 
-def get_upload_dir() -> Path:
+def get_output_dir() -> Path:
     """
-    Return upload directory from environment variable or default.
+    Return output directory for generated CSVs.
     Allows tests to override via monkeypatch.
     """
-    upload_dir = Path(os.getenv("UPLOAD_DIR", DEFAULT_UPLOAD_DIR))
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    return upload_dir
+    output_dir = Path(os.getenv("OUTPUT_DIR", DEFAULT_OUTPUT_DIR))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
 
 
 def error_response(message: str, status_code: int = 400, stage: str = "upload") -> JSONResponse:
@@ -132,6 +141,17 @@ def error_response(message: str, status_code: int = 400, stage: str = "upload") 
     )
 
 
+def is_safe_filename(filename: str) -> bool:
+    """
+    Return True if filename contains only safe characters.
+    Rejects path traversal attempts and unsafe characters.
+    """
+    # Reject empty, path separators, and traversal sequences
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        return False
+    return bool(_SAFE_FILENAME_RE.match(filename))
+
+
 # ===========================================================================
 # Routes
 # ===========================================================================
@@ -144,10 +164,10 @@ def health_check():
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     """
-    Accept an .xlsx file upload, run the full ingestion pipeline, and
-    return a structured summary of clean and rejected rows.
+    Accept an .xlsx file upload, run the full ingestion pipeline, write
+    output CSVs, and return a structured response with download links.
 
-    Pre-pipeline validation (HTTP 400 flat response):
+    Pre-pipeline validation (HTTP 400):
     - File extension must be .xlsx
     - MIME type must match xlsx
     - File must not be empty
@@ -156,10 +176,18 @@ async def upload_file(file: UploadFile = File(...)):
     - parse + map (per sheet)
     - normalize → inject_client → validate → split → enforce_schema
 
-    Response:
-    - HTTP 200 with summary (even if rows are rejected — that is expected)
-    - HTTP 400 if pipeline fails (PipelineError — bad file, bad structure)
-    - HTTP 500 if unexpected exception occurs
+    Output:
+    - clean CSV written to output directory
+    - rejected CSV written to output directory
+
+    Response schema (HTTP 200):
+    {
+        "total_rows": int,
+        "clean_rows": int,
+        "rejected_rows": int,
+        "clean_file": "/download/{filename}",
+        "rejected_file": "/download/{filename}"
+    }
     """
     # --- Pre-pipeline file validation ---
     raw_filename = file.filename or ""
@@ -181,16 +209,9 @@ async def upload_file(file: UploadFile = File(...)):
     if len(content) == 0:
         return error_response("empty file — uploaded file contains no content")
 
-    # --- Save file ---
-    upload_dir = get_upload_dir()
-    unique_filename = f"{uuid.uuid4().hex}_{filename}"
-    destination = upload_dir / unique_filename
-    destination.write_bytes(content)
-
     logger.info("File received — filename=%s size=%d bytes", filename, len(content))
 
     # --- Parse workbook ---
-    # Wrap parse separately so parse failures map to stage="parse"
     try:
         source = io.BytesIO(content)
         parsed_df = parse_workbook(source, mapping_config)
@@ -206,8 +227,17 @@ async def upload_file(file: UploadFile = File(...)):
         ) from e
 
     # --- Run pipeline ---
-    # PipelineError and unexpected exceptions bubble up to exception handlers
     result = run_pipeline(parsed_df, mapping_config)
+
+    # --- Write output files ---
+    output_dir = get_output_dir()
+    filenames = generate_output_filenames(filename)
+
+    clean_path = output_dir / filenames["clean"]
+    rejected_path = output_dir / filenames["rejected"]
+
+    write_clean_csv(result["clean_df"], clean_path)
+    write_rejected_csv(result["rejected_df"], rejected_path)
 
     summary = result["summary"]
     logger.info(
@@ -221,7 +251,54 @@ async def upload_file(file: UploadFile = File(...)):
     return JSONResponse(
         status_code=200,
         content={
-            "summary": summary,
-            "filename": unique_filename,
+            "total_rows": summary["total_rows"],
+            "clean_rows": summary["clean_rows"],
+            "rejected_rows": summary["rejected_rows"],
+            "clean_file": f"/download/{filenames['clean']}",
+            "rejected_file": f"/download/{filenames['rejected']}",
         },
+    )
+
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    """
+    Serve a generated CSV file by filename.
+
+    Security:
+    - Filename is validated against a strict safe character pattern
+    - Path traversal attempts (../) are rejected with 400
+    - Non-existent files return 404
+
+    Returns:
+    - 200 with CSV file content
+    - 400 if filename is unsafe
+    - 404 if file does not exist
+    """
+    if not is_safe_filename(filename):
+        return error_response(
+            f"invalid filename: '{filename}'",
+            status_code=400,
+            stage="download",
+        )
+
+    output_dir = get_output_dir()
+    file_path = output_dir / filename
+
+    if not file_path.exists():
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": {
+                    "type": "NotFound",
+                    "stage": "download",
+                    "message": f"File not found: '{filename}'",
+                }
+            },
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type="text/csv",
+        filename=filename,
     )

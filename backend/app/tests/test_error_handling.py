@@ -167,9 +167,9 @@ def test_valid_file_with_invalid_rows_returns_200():
     response = client.post("/upload", files=[make_xlsx_upload(buf.getvalue())])
     assert response.status_code == 200
     body = response.json()
-    assert body["summary"]["total_rows"] == 2
-    assert body["summary"]["rejected_rows"] > 0  # validator ran and caught the bad row
-    assert body["summary"]["clean_rows"] == 1
+    assert body["total_rows"] == 2
+    assert body["rejected_rows"] > 0  # validator ran and caught the bad row
+    assert body["clean_rows"] == 1
 
 
 def test_valid_file_with_invalid_rows_has_summary():
@@ -178,10 +178,9 @@ def test_valid_file_with_invalid_rows_has_summary():
     response = client.post("/upload", files=[make_xlsx_upload(valid_xlsx)])
     assert response.status_code == 200
     body = response.json()
-    assert "summary" in body
-    assert "total_rows" in body["summary"]
-    assert "clean_rows" in body["summary"]
-    assert "rejected_rows" in body["summary"]
+    assert "total_rows" in body
+    assert "clean_rows" in body
+    assert "rejected_rows" in body
 
 
 def test_validation_failure_does_not_raise_exception():
@@ -221,6 +220,6 @@ def test_empty_workbook_returns_200_with_zero_rows():
     response = client.post("/upload", files=[make_xlsx_upload(buf.getvalue())])
     assert response.status_code == 200
     body = response.json()
-    assert body["summary"]["total_rows"] == 0
-    assert body["summary"]["clean_rows"] == 0
-    assert body["summary"]["rejected_rows"] == 0
+    assert body["total_rows"] == 0
+    assert body["clean_rows"] == 0
+    assert body["rejected_rows"] == 0

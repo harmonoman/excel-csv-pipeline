@@ -43,21 +43,16 @@ def make_xlsx_file(
 # --- Valid upload ---
 
 def test_valid_xlsx_upload_returns_200(client, tmp_path, monkeypatch):
-    """Valid .xlsx file upload returns 200, correct response shape, and file is saved to disk."""
-    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
-
+    """Valid .xlsx file upload returns 200 with correct flat response schema."""
     response = client.post("/upload", files={"file": make_xlsx_file()})
 
     assert response.status_code == 200
     data = response.json()
-    assert "summary" in data
-    assert "filename" in data
-    assert data["filename"].endswith(".xlsx")
-
-    # Verify file was actually written to disk
-    saved_files = list(tmp_path.iterdir())
-    assert len(saved_files) == 1
-    assert saved_files[0].name.endswith(".xlsx")
+    assert "total_rows" in data
+    assert "clean_rows" in data
+    assert "rejected_rows" in data
+    assert "clean_file" in data
+    assert "rejected_file" in data
 
 
 def test_uppercase_extension_accepted(client, tmp_path, monkeypatch):
@@ -132,19 +127,17 @@ def test_missing_file_field_returns_422(client):
 
 def test_path_traversal_in_filename_is_sanitized(client, tmp_path, monkeypatch):
     """
-    Filename containing path traversal characters must be sanitized before saving.
-    The file should still be accepted and saved — but only the basename is used.
+    Filename containing path traversal characters is sanitized by Path().name
+    before use. The upload succeeds and the output filenames are safe.
     """
-    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
-
     response = client.post(
         "/upload",
         files={"file": make_xlsx_file(filename="../../etc/passwd.xlsx")},
     )
 
     assert response.status_code == 200
-    # Saved filename must not contain directory traversal components
-    saved_files = list(tmp_path.iterdir())
-    assert len(saved_files) == 1
-    assert ".." not in saved_files[0].name
-    assert "etc" not in saved_files[0].name
+    data = response.json()
+    # Output filenames must not contain path traversal components
+    assert ".." not in data["clean_file"]
+    assert ".." not in data["rejected_file"]
+    assert "etc" not in data["clean_file"]
