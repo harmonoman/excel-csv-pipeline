@@ -32,19 +32,10 @@ from app.processing.schema import enforce_schema
 logger = logging.getLogger(__name__)
 
 
-class PipelineError(Exception):
-    """
-    Raised when any pipeline stage fails.
-
-    Preserves the originating stage name, exception type, and message
-    so callers can return structured error responses without losing context.
-    """
-
-    def __init__(self, stage: str, error_type: str, error_message: str):
-        self.stage = stage
-        self.error_type = error_type
-        self.error_message = error_message
-        super().__init__(f"Pipeline failed at stage '{stage}': [{error_type}] {error_message}")
+# PipelineError lives in errors.py to avoid circular imports with stage modules
+# that need to raise it (e.g. schema.py). Re-exported here for backward compatibility
+# so existing callers (main.py, tests) can still import from pipeline.
+from app.processing.errors import PipelineError  # noqa: F401
 
 
 def _run_stage(stage_name: str, fn, *args, **kwargs):

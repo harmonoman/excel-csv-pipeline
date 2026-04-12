@@ -7821,7 +7821,7 @@ Begin full system audit.
     - Defined a comprehensive QA audit framework covering architecture, validation, contracts, and data integrity
     - Enforced strict MVP readiness criteria with PASS/FAIL gating and risk classification
     - Introduced deep validation of test coverage, fixture realism, and contract/code alignment
-Emphasized deterministic outputs and zero data loss as top priorities
+    - Emphasized deterministic outputs and zero data loss as top priorities
 - **Impact:**
     - Established a formal production checkpoint before proceeding to T5 (CSV output)
     - Elevated quality bar from feature completion to system reliability and trustworthiness
@@ -7912,3 +7912,689 @@ now that we are at the E4 -> E5 junction please review this ticket to make sure 
     - Prevented premature progression to E5 without verified input reliability
     - Established need for documented validation artifacts to support pipeline robustness
 ---
+
+### Prompt ID: P-054
+- **Author:** Mark / Claude
+- **Target:** ChatGPT
+- **Purpose:** Final schema enforcement layer for clean_df prior to CSV generation
+#### Prompt
+```
+ok after talking with Claude: 
+< 
+ok we are at the E4 -> E5 junction: 
+what I'd like to do at this point is feed you all of our source code (via cat?) so that you have a fresh view of everything before we move into the next phase: 
+T5 - Output generation: 
+T5-1 - clean_donations.csv writer 
+T5-2 - rejected_rows.csv writer 
+T5-3 - Download response + summary 
+T5-4 - Deterministic file naming 
+T5-5 - Basic logging 
+T5-6 - Final schema enforcement layer 
+
+9:28 AM Good idea. 
+Let me read everything fresh from the actual repo. 
+Ran 4 commands Ran 4 commands 
+Good. I now have a complete fresh picture of the entire codebase. 
+Here's what I know going into E5: 
+Current pipeline output from run_pipeline(): 
+
+python { "clean_df": DataFrame, # canonical columns, schema-ordered, internal cols removed "rejected_df": DataFrame, # original columns + rejection_reason "summary": {"total_rows": int, "clean_rows": int, "rejected_rows": int} } 
+
+enforce_schema() stub current behavior: selects only columns present in OUTPUT_SCHEMA in order — silently drops missing ones. T5-6 replaces this. 
+main.py current response: returns only {"summary": ..., "filename": ...} — no CSV content, no download links. 
+T5 builds on top of this. 
+OUTPUT_SCHEMA: 
+python ["First", "Last", "Address1", "City", "State", "Zip", "DonationDate", "DonationAmount", "Client"] rejected_df columns: all canonical fields + rejection_reason. 
+My read on T5 ticket ordering and dependencies: 
+T5-6 first — before writing CSV writers, enforce_schema needs to be strict. 
+If a required column is missing from clean_df due to an upstream gap, the CSV writer should not silently write a partial file. 
+T5-6 gives us a hard gate. 
+Every other T5 ticket depends on clean_df being schema-correct. 
+T5-1 and T5-2 next — clean CSV writer and rejected CSV writer. 
+Both are straightforward pandas to_csv() wrappers with deterministic settings (encoding, index=False, quoting). T5-4 alongside T5-1/T5-2 — deterministic file naming (derived from original filename + timestamp or batch ID). 
+Naming logic belongs with the writers, not with the endpoint. 
+T5-3 after writers — download response. Once files are written and named, the endpoint can return them as file downloads or as paths/URLs depending on how far we want to go for MVP. 
+T5-5 last — basic logging pass across E5. 
+Once the full output flow is working, audit the log statements and make sure the right things are being logged at the right levels. 
+Ready to begin when you are — want to start with T5-6 to replace the schema stub, or take the tickets in order T5-1 through T5-6? 
+> 
+
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T5-6 - Final schema enforcement layer 
+
+Description 
+Ensure final clean_df strictly conforms to required schema (columns + order + completeness). 
+
+Acceptance Criteria 
+Output contains EXACTLY: First, Last, Address1, City, State, Zip, DonationDate, DonationAmount, Client 
+No extra columns 
+No missing columns 
+Column order enforced before CSV write
+```
+
+- **Summary of Response:**
+    - Defined strict schema enforcement logic as a hard gate before CSV generation
+    - Required validation of column presence, completeness, and exact ordering
+    - Clarified that missing or extra columns should cause failure rather than silent drop
+    - Positioned this step as a dependency blocker for all downstream T5 output tasks
+- **Impact:**
+    - Established final “schema gate” ensuring data integrity before any file output
+    - Prevented silent data loss by enforcing strict column validation rules
+    - Locked in deterministic structure required for all CSV writers and downstream pipeline stages
+---
+
+### Prompt ID: P-055
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Implement strict schema enforcement layer in data pipeline
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T5-6 Final Schema Enforcement
+
+## Lead Data Engineer Implementation (MVP Gatekeeper Layer)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T5-6 — Final Schema Enforcement Layer**
+
+This is a **hard gate** between the pipeline and output generation.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Ensure that:
+
+> **clean_df EXACTLY matches the required warehouse ingestion schema**
+
+Before ANY CSV is written.
+
+---
+
+# ⚠️ CRITICAL CONTEXT
+
+Current state:
+
+* `clean_df` is produced after:
+
+  * parsing
+  * mapping
+  * normalization
+  * validation
+  * row splitting
+
+* `enforce_schema()` currently:
+  ❌ silently drops missing columns
+  ❌ allows incomplete datasets
+
+This is **NOT acceptable for production ingestion**
+
+---
+
+# 🚨 CORE PRINCIPLE (NON-NEGOTIABLE)
+
+> If the schema is wrong → FAIL LOUDLY
+
+DO NOT:
+
+* silently fix
+* infer missing columns
+* allow partial outputs
+
+---
+
+# 📊 REQUIRED OUTPUT SCHEMA (SOURCE OF TRUTH)
+
+OUTPUT_SCHEMA = [
+    "First",
+    "Last",
+    "Address1",
+    "City",
+    "State",
+    "Zip",
+    "DonationDate",
+    "DonationAmount",
+    "Client",
+]
+
+---
+
+# 📌 ACCEPTANCE CRITERIA (STRICT)
+
+## 1. Exact Column Match
+
+* clean_df MUST contain:
+
+  * ALL columns in OUTPUT_SCHEMA
+  * NO extra columns
+
+---
+
+## 2. Missing Column → HARD FAILURE
+
+If ANY column is missing:
+
+raise PipelineError(
+    stage="schema",
+    error_type="MissingColumn",
+    message="Missing required column: Address1"
+)
+
+🚨 Do NOT attempt recovery
+
+---
+
+## 3. Extra Column → REMOVE
+
+* Any column NOT in schema:
+
+  * MUST be dropped
+  * MUST NOT appear in output
+
+---
+
+## 4. Column Order Enforcement
+
+Final DataFrame MUST be:
+
+df = df[OUTPUT_SCHEMA]
+
+🚨 Order matters for downstream systems
+
+---
+
+## 5. No Mutation Side Effects
+
+* MUST operate on a `.copy()`
+* MUST NOT mutate upstream data
+
+---
+
+# 🏗️ IMPLEMENTATION REQUIREMENTS
+
+Implement in:
+
+app/processing/schema.py
+
+Function signature:
+
+def enforce_schema(clean_df: pd.DataFrame) -> pd.DataFrame:
+
+---
+
+# ⚠️ ERROR HANDLING INTEGRATION
+
+* Use existing `PipelineError`
+* stage MUST be `"schema"`
+* error_type MUST be descriptive:
+
+  * `"MissingColumn"`
+  * `"SchemaViolation"`
+
+---
+
+# 🧪 TEST-DRIVEN REQUIREMENTS
+
+You MUST write unit tests.
+
+---
+
+## 1. Happy Path (REQUIRED)
+
+Input:
+
+* DataFrame with all required columns (unordered)
+
+Expected:
+
+* output columns EXACT match
+* correct order enforced
+
+---
+
+## 2. Missing Column (CRITICAL)
+
+Input:
+
+* DataFrame missing `Address1`
+
+Expected:
+
+* raises PipelineError
+* correct message
+
+---
+
+## 3. Extra Columns Present
+
+Input:
+
+* DataFrame includes `_source_sheet`, `random_col`
+
+Expected:
+
+* output drops extras
+* only schema columns remain
+
+---
+
+## 4. Empty DataFrame
+
+Input:
+
+* empty df with correct columns
+
+Expected:
+
+* passes (structure is valid)
+
+---
+
+## 5. Column Case Sensitivity
+
+Input:
+
+* incorrect casing (`first`, `last`)
+
+Expected:
+
+* FAIL (mapping stage should have handled this)
+
+🚨 Do NOT normalize here
+
+---
+
+# 🚨 COMMON FAILURE MODES
+
+Flag immediately if present:
+
+* silently filling missing columns with nulls
+* allowing partial schema
+* mutating original DataFrame
+* not enforcing order
+* swallowing errors instead of raising
+* using try/except to hide issues
+
+---
+
+# 🧠 DESIGN PRINCIPLE
+
+This layer enforces:
+
+> “Only warehouse-ready data leaves the pipeline.”
+
+---
+
+# 🔗 PIPELINE INTEGRATION
+
+This function MUST:
+
+* be called AFTER T4-3 (row split)
+* be applied ONLY to clean_df
+* run BEFORE CSV writing (T5-1)
+
+---
+
+# 📋 COMPLETION CHECKLIST
+
+Before finishing, confirm:
+
+* strict schema enforcement implemented
+* PipelineError raised correctly
+* column order enforced
+* extra columns removed
+* full unit test coverage
+* no silent failures
+
+---
+
+# 🧠 FINAL NOTE
+
+This is the **last line of defense** before data leaves your system.
+
+If this layer is weak:
+
+> bad data reaches the warehouse → downstream systems break → trust is lost
+
+---
+
+Be strict.
+Be unforgiving.
+Fail loudly.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Defined a strict schema enforcement function as a hard gate before data export
+    - Introduced fail-fast behavior requiring exact column matching, ordering, and removal of extraneous fields
+    - Specified integration point in pipeline and enforced unit testing requirements for multiple edge cases
+- **Impact:**
+    - Strengthened data integrity by ensuring only warehouse-valid datasets can proceed to export
+    - Shifted pipeline design toward fail-fast, production-grade reliability
+    - Established testing expectations and reduced risk of silent schema corruption
+---
+
+### Prompt ID: P-056
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Final schema enforcement QA audit prompt for production data pipeline validation
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T5-6 QA / Senior Test Engineer Review
+
+## Final Schema Enforcement (Production Gate Audit)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer reviewer**.
+
+Your task is to perform a **strict, production-level audit** of:
+
+> **T5-6 — Final Schema Enforcement Layer**
+
+This is the **last line of defense before data leaves the pipeline**.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Verify that:
+
+* `clean_df` STRICTLY conforms to the required schema
+* invalid schema conditions **fail loudly** (no silent corruption)
+* output is **warehouse-ready and deterministic**
+
+---
+
+# ⚠️ CORE PRINCIPLE (NON-NEGOTIABLE)
+
+> If schema is incorrect → PIPELINE MUST FAIL
+
+🚨 Any silent success with bad schema = **FAIL**
+
+---
+
+# 📊 REQUIRED SCHEMA (SOURCE OF TRUTH)
+
+OUTPUT_SCHEMA = [
+    "First",
+    "Last",
+    "Address1",
+    "City",
+    "State",
+    "Zip",
+    "DonationDate",
+    "DonationAmount",
+    "Client",
+]
+
+---
+
+# 🧪 CRITICAL VALIDATION CHECKS
+
+---
+
+## 1. Exact Column Match (HIGH PRIORITY)
+
+Verify:
+
+* ALL required columns present
+* NO extra columns remain
+
+🚨 FAIL if:
+
+* any required column missing
+* any unexpected column present in final output
+
+---
+
+## 2. Missing Column Handling (CRITICAL)
+
+Confirm:
+
+* missing column triggers:
+
+PipelineError(stage="schema", error_type="MissingColumn", ...)
+
+Verify:
+
+* correct stage = `"schema"`
+* error_type is meaningful
+* error message identifies missing column
+
+🚨 FAIL if:
+
+* missing column is silently ignored
+* missing column is filled with nulls
+* generic exception used instead
+
+---
+
+## 3. Extra Column Handling
+
+Verify:
+
+* extra columns are dropped BEFORE output
+* no internal columns leak:
+
+  * `_source_sheet`
+  * intermediate fields
+  * debug columns
+
+---
+
+## 4. Column Order Enforcement (CRITICAL)
+
+Confirm final DataFrame:
+
+df = df[OUTPUT_SCHEMA]
+
+Verify:
+
+* EXACT order matches schema
+* no reliance on existing order
+
+🚨 FAIL if order is incorrect
+
+---
+
+## 5. No Mutation Side Effects
+
+Ensure:
+
+* `.copy()` used before transformation
+* original DataFrame not modified
+
+Test:
+
+* pass df into function
+* confirm original remains unchanged
+
+---
+
+## 6. Deterministic Behavior
+
+Verify:
+
+* same input → identical output
+* no randomness
+* no reliance on column ordering from upstream
+
+---
+
+# ⚠️ EDGE CASE VALIDATION
+
+---
+
+## 1. Empty DataFrame
+
+* correct schema, zero rows
+* MUST pass
+
+---
+
+## 2. Missing Column Case
+
+* missing `Address1`
+* MUST raise PipelineError
+
+---
+
+## 3. Extra Columns Case
+
+* includes `_source_sheet`, `random_col`
+* MUST drop extras
+
+---
+
+## 4. Incorrect Column Casing
+
+Input:
+
+first, last
+
+Expected:
+
+* FAIL (schema enforcement does NOT normalize)
+
+---
+
+## 5. Duplicate Columns (Rare but Critical)
+
+* confirm behavior is deterministic
+* no silent overwriting
+
+---
+
+# 🚨 COMMON FAILURE MODES
+
+Flag immediately if present:
+
+* silent column dropping without validation
+* silent addition of missing columns
+* mutation of input DataFrame
+* incorrect column order
+* reliance on upstream correctness
+* try/except masking schema issues
+
+---
+
+# 🧪 TEST COVERAGE AUDIT
+
+Ensure tests exist for:
+
+* happy path (unordered columns → ordered output)
+* missing column → failure
+* extra columns → dropped
+* empty DataFrame
+* incorrect casing → failure
+
+🚨 Missing any of these → TEST GAP
+
+---
+
+# 🔗 PIPELINE INTEGRATION CHECK
+
+Verify:
+
+* function is called AFTER row splitting (T4-3)
+* applied ONLY to `clean_df`
+* executed BEFORE CSV writing
+
+---
+
+# 📊 DATA INTEGRITY IMPACT
+
+Confirm:
+
+* no data lost during column selection
+* no data reshaped incorrectly
+* row count unchanged
+
+---
+
+# 🚫 FAIL CONDITIONS
+
+Immediately FAIL if:
+
+* schema violations pass silently
+* incorrect column order
+* missing PipelineError usage
+* mutation of input data
+* extra columns leak into output
+
+---
+
+# 📋 OUTPUT FORMAT
+
+Return:
+
+---
+
+## 1. 🧠 Executive Summary
+
+PASS / FAIL / PASS WITH RISKS
+
+---
+
+## 2. 🔴 Critical Issues
+
+(schema correctness failures)
+
+---
+
+## 3. 🟡 Data Integrity Risks
+
+---
+
+## 4. 🧪 Test Coverage Gaps
+
+---
+
+## 5. ⚠️ Edge Cases Missed
+
+---
+
+## 6. 🧠 Final Verdict
+
+* ✅ READY FOR T5-1 / T5-2
+* ⚠️ READY WITH MINOR FIXES
+* ❌ BLOCKED
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is NOT a formatting review.
+
+This is a **data contract enforcement audit**.
+
+If this layer fails:
+
+> invalid data reaches the warehouse → downstream systems break → trust is lost
+
+Be strict.
+Be unforgiving.
+Think like production.
+
+---
+
+Begin review.
+
+```
+
+- **Summary of Response:**
+    - Performed strict QA audit instruction design for schema enforcement layer
+    - Defined hard fail conditions for any schema violation in clean_df
+    - Specified required column contract, ordering rules, and mutation safety constraints
+    - Included edge case handling and required test coverage expectations
+    - Enforced pipeline placement rules (post-split, pre-export)
+- **Impact:**
+    - Established final “production gate” validation layer for data warehouse integrity
+    - Ensures schema violations fail loudly instead of silently corrupting downstream systems
+    - Strengthens test coverage expectations and prevents structural data drift in pipeline
+---
+
