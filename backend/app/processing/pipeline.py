@@ -35,6 +35,8 @@ logger = logging.getLogger(__name__)
 # PipelineError lives in errors.py to avoid circular imports with stage modules
 # that need to raise it (e.g. schema.py). Re-exported here for backward compatibility
 # so existing callers (main.py, tests) can still import from pipeline.
+# NOTE for E6+: any NEW stage module that needs to raise PipelineError should
+# import directly from app.processing.errors — not through pipeline.py.
 from app.processing.errors import PipelineError  # noqa: F401
 
 

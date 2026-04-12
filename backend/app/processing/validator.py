@@ -14,6 +14,7 @@ This module does NOT:
 - Drop rows
 """
 import logging
+import math
 
 import pandas as pd
 
@@ -98,8 +99,8 @@ def _validate_missing_fields(df: pd.DataFrame) -> list[pd.Series]:
 
 def _validate_donation_amount(df: pd.DataFrame) -> pd.Series:
     """
-    T4-2: DonationAmount must be numeric and > 0.
-    Non-numeric values and zero/negative values are rejected.
+    T4-2: DonationAmount must be numeric, finite, and > 0.
+    Non-numeric values, zero, negative values, and infinity are rejected.
     Returns a Series of "" (valid) or "Invalid Amount" (invalid).
     """
     if "DonationAmount" not in df.columns:
@@ -110,7 +111,7 @@ def _validate_donation_amount(df: pd.DataFrame) -> pd.Series:
             return ""  # Already caught by T4-1
         try:
             numeric = float(val)
-            return "" if numeric > 0 else MSG_AMOUNT
+            return "" if math.isfinite(numeric) and numeric > 0 else MSG_AMOUNT
         except (ValueError, TypeError):
             return MSG_AMOUNT
 

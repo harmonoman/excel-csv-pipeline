@@ -214,3 +214,28 @@ def test_repeat_upload_produces_same_row_counts():
     assert upload1.json()["total_rows"] == upload2.json()["total_rows"]
     assert upload1.json()["clean_rows"] == upload2.json()["clean_rows"]
     assert upload1.json()["rejected_rows"] == upload2.json()["rejected_rows"]
+
+
+def test_upload_all_clean_rows_zero_rejected():
+    """Workbook where all rows are valid produces zero rejected_rows in response
+    and a rejected CSV with header only."""
+    all_clean = build_workbook([{
+        "name": "Alpha Fund",
+        "rows": [
+            ["First", "Last", "Address1", "City", "State", "Zip", "GiftDate", "Amount"],
+            ["John", "Doe", "123 Main St", "Nashville", "TN", "37201", "2024-01-01", "100.00"],
+            ["Jane", "Smith", "456 Oak Ave", "Memphis", "TN", "38101", "2024-01-02", "50.00"],
+        ]
+    }]).read()
+    response = client.post("/upload", files=[make_xlsx_upload(all_clean)])
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rejected_rows"] == 0
+    assert body["clean_rows"] == 2
+    assert body["total_rows"] == 2
+    # Rejected file still exists with header only
+    rejected_response = client.get(body["rejected_file"])
+    assert rejected_response.status_code == 200
+    df = pd.read_csv(io.StringIO(rejected_response.text))
+    assert len(df) == 0
+    assert "rejection_reason" in df.columns
