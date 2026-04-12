@@ -8598,3 +8598,557 @@ Begin review.
     - Strengthens test coverage expectations and prevents structural data drift in pipeline
 ---
 
+### Prompt ID: P-057
+- **Author:** Mark / Claude
+- **Target:** ChatGPT
+- **Purpose:** Generate implementation prompt for deterministic file naming (T5-4)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T5-4 - Deterministic file naming:
+
+Description
+Generate clear, unique filenames for output files (clean and rejected CSVs) using a timestamp and the original input filename. The goal is to prevent collisions while keeping naming simple and human-readable. Determinism is enforced at the data level (CSV content), not the filename.
+
+Acceptance criteria
+Filenames follow a consistent pattern:
+
+{timestamp}_{input_filename}_clean.csv
+{timestamp}_{input_filename}_rejected.csv
+Multiple uploads do not overwrite existing files
+Filenames are safe for filesystem and URL usage (no spaces, special characters sanitized)
+Clean and rejected files from the same upload share the same base identifier (timestamp + filename)
+Assumptions
+Timestamp granularity (e.g., seconds or milliseconds) is sufficient to avoid collisions in MVP usage
+Input filenames may contain unsafe characters and must be sanitized
+Files are stored locally in a temporary/output directory
+Test plan
+Unit test: filename is correctly formatted given an input filename
+Unit test: unsafe characters in filename are sanitized properly
+Integration test: multiple uploads generate distinct filenames
+Integration test: clean and rejected files from same upload share matching base name
+
+(explanation of why we need to build in the order:
+
+T6 -> T4 -> T1 -> T2 -> T3 -> T5:
+
+T5-6 first — schema enforcement is a hard gate. No point writing CSV writers until we know exactly what shape the data will be in. Done.
+T5-4 next — file naming logic (how output files get named) needs to be defined before T5-1 and T5-2 write anything to disk. The writers need to know what to call the files they're creating.
+T5-1 and T5-2 together — once naming is settled, both CSV writers are nearly identical (to_csv() wrappers with deterministic settings). Clean writer and rejected writer can be implemented in the same pass.
+T5-3 after writers — the download response endpoint can only be wired up once there are actual files to serve. It depends on T5-1, T5-2, and T5-4 all being complete.
+T5-5 last — logging is a pass over the finished output flow rather than a blocker for anything else. Once the full E5 pipeline is working end-to-end, audit the log statements and fill in any gaps.)
+```
+
+- **Summary of Response:**
+    - Generated a structured implementation prompt directing Claude to build deterministic filename logic
+    - Emphasized sanitization, timestamp-based uniqueness, and shared base identifiers
+    - Incorporated test-driven requirements (unit + integration tests)
+    - Reinforced dependency order within T5 to ensure correct build sequencing
+- **Impact:**
+    - Clarified that file naming is a prerequisite for all CSV output logic
+    - Enabled consistent, collision-safe file handling across pipeline runs
+    - Aligned implementation with TDD approach and overall E5 pipeline sequencing
+---
+
+### Prompt ID: P-058
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Deterministic file naming utility for output pipeline
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T5-4 Deterministic File Naming
+
+## Lead Data Engineer Implementation (MVP, Test-Driven, Output Layer Foundation)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T5-4 — Deterministic File Naming**
+
+This is a **foundational dependency** for all output generation (T5-1, T5-2, T5-3).
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Create a **reliable, deterministic, collision-safe file naming system** for:
+
+* clean output CSV
+* rejected rows CSV
+
+---
+
+# ⚠️ CONTEXT (CRITICAL TO GET RIGHT)
+
+You are building this **BEFORE** CSV writers.
+
+Why:
+
+* T5-1 / T5-2 depend on filenames
+* T5-3 (download endpoint) depends on filenames
+* naming must be consistent and reusable
+
+---
+
+# 🧠 CORE DESIGN PRINCIPLES
+
+### 1. Human-readable
+
+* filenames should be understandable
+
+### 2. Collision-safe
+
+* multiple uploads MUST NOT overwrite files
+
+### 3. Paired outputs
+
+* clean + rejected files MUST share same base identifier
+
+### 4. Safe for filesystem + URLs
+
+* no spaces
+* no special characters
+
+---
+
+# 📌 REQUIRED FILENAME FORMAT
+
+{timestamp}_{sanitized_input_filename}_clean.csv
+{timestamp}_{sanitized_input_filename}_rejected.csv
+
+---
+
+# 🧩 COMPONENTS
+
+## 1. Timestamp
+
+* MUST be included
+* MUST ensure uniqueness
+* format recommendation:
+
+YYYYMMDD_HHMMSS
+
+Example:
+
+20260412_143205
+
+---
+
+## 2. Input Filename (Sanitized)
+
+Input:
+
+"My Donations (Final).xlsx"
+
+Output:
+
+my_donations_final
+
+### Rules:
+
+* lowercase
+* replace spaces → `_`
+* remove special characters
+* strip extension (.xlsx)
+* allow only:
+
+  * letters
+  * numbers
+  * underscores
+
+---
+
+## 3. Suffix
+
+* `_clean.csv`
+* `_rejected.csv`
+
+---
+
+# 🏗️ IMPLEMENTATION REQUIREMENTS
+
+Create utility module:
+
+app/utils/file_naming.py
+
+---
+
+## Required Functions
+
+### 1. sanitize_filename()
+
+def sanitize_filename(filename: str) -> str:
+
+---
+
+### 2. generate_output_filenames()
+
+def generate_output_filenames(input_filename: str) -> dict:
+    return {
+        "clean": "...",
+        "rejected": "...",
+        "base": "..."
+    }
+
+---
+
+# 📤 OUTPUT CONTRACT
+
+Example:
+
+{
+    "base": "20260412_143205_my_donations",
+    "clean": "20260412_143205_my_donations_clean.csv",
+    "rejected": "20260412_143205_my_donations_rejected.csv"
+}
+
+---
+
+# 📁 STORAGE ASSUMPTION
+
+* files saved to:
+
+/tmp/ or /output/
+
+* filenames MUST be safe for:
+
+  * filesystem
+  * URL paths
+
+---
+
+# 🧪 TEST-DRIVEN REQUIREMENTS
+
+---
+
+## 1. Filename Format Test (REQUIRED)
+
+Input:
+
+"donations.xlsx"
+
+Expected:
+
+* matches pattern
+* contains timestamp
+* correct suffixes
+
+---
+
+## 2. Sanitization Test
+
+Input:
+
+"My Donations (Final).xlsx"
+
+Expected:
+
+my_donations_final
+
+---
+
+## 3. Unsafe Characters Test
+
+Input:
+
+"client@data#2024!.xlsx"
+
+Expected:
+
+clientdata2024
+
+---
+
+## 4. Matching Base Name Test
+
+Ensure:
+
+clean.startswith(base)
+rejected.startswith(base)
+
+---
+
+## 5. Multiple Uploads (CRITICAL)
+
+Simulate:
+
+* two calls within short time
+
+Expected:
+
+* filenames differ (timestamp uniqueness)
+
+---
+
+# ⚠️ IMPLEMENTATION RULES
+
+DO:
+
+* use `datetime.utcnow()` or equivalent
+* use regex for sanitization
+* keep logic deterministic
+* isolate logic in utility module
+
+---
+
+DO NOT:
+
+* hardcode filenames
+* include original extension (.xlsx)
+* allow spaces or special characters
+* generate filenames inside endpoint logic
+
+---
+
+# 🚨 COMMON FAILURE MODES
+
+Flag immediately if present:
+
+* filenames with spaces
+* unsafe characters not removed
+* inconsistent naming between clean/rejected
+* timestamp missing or incorrect
+* collision risk (same filename generated twice)
+* extension duplication (e.g., .xlsx.csv)
+
+---
+
+# 🔗 PIPELINE INTEGRATION
+
+This module will be used by:
+
+* T5-1 (clean writer)
+* T5-2 (rejected writer)
+* T5-3 (download endpoint)
+
+---
+
+# 📋 COMPLETION CHECKLIST
+
+Before finishing, confirm:
+
+* filenames follow exact format
+* sanitization works for all edge cases
+* timestamp ensures uniqueness
+* clean + rejected share base identifier
+* full unit test coverage exists
+
+---
+
+# 🧠 FINAL NOTE
+
+This may look simple — it is NOT.
+
+If this fails:
+
+* files overwrite each other
+* downloads break
+* debugging becomes impossible
+
+This is **infrastructure-level correctness**.
+
+---
+
+Be precise.
+Be consistent.
+Be deterministic.
+
+---
+
+Begin implementation.
+```
+
+- **Summary of Response:**
+    - Implemented utility module for filename sanitization and deterministic generation
+    - Used timestamp + sanitized base name to create paired clean/rejected filenames
+    - Applied regex-based cleaning to enforce filesystem-safe naming rules
+    - Developed comprehensive unit tests covering format, uniqueness, and edge cases
+- **Impact:**
+    - Established a reliable naming convention used across all output layers (T5-1, T5-2, T5-3)
+    - Eliminated risk of file overwrites and inconsistent output references
+    - Enabled downstream features (file writing, downloads) to depend on a stable contract
+---
+
+### Prompt ID: P-059
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA review for deterministic file naming system
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-4 QA / Senior Test Engineer Review
+
+You are acting as a Senior QA Engineer + Lead Data Engineer reviewer.
+
+Your task is to perform a strict, production-grade code review of the implementation for:
+
+T5-4 — Deterministic File Naming
+
+This is a critical infrastructure layer that ensures:
+
+No file collisions
+Predictable output handling
+Safe filesystem + URL compatibility
+
+This logic directly impacts:
+
+CSV writers (T5-1, T5-2)
+Download endpoints (T5-3)
+Observability and debugging
+🎯 Review Objectives
+
+Evaluate the implementation for:
+
+1. Correctness (Primary)
+
+Ensure all acceptance criteria are fully satisfied:
+
+Filenames follow exact pattern:
+
+{timestamp}_{input_filename}_clean.csv
+{timestamp}_{input_filename}_rejected.csv
+Clean + rejected files:
+Share identical base identifier
+Differ only by suffix (_clean, _rejected)
+Multiple uploads:
+NEVER overwrite existing files
+Always produce unique filenames
+2. Determinism vs Uniqueness (Subtle but Critical)
+
+Validate correct balance:
+
+✅ File contents are deterministic
+✅ Filenames are unique per run
+❌ No hidden randomness that breaks traceability
+❌ No reuse of timestamps that risks collisions
+
+Check:
+
+Timestamp resolution (seconds vs ms)
+Whether collisions are realistically possible
+3. Filename Safety (High Risk Area)
+
+Verify robust sanitization of input filenames:
+
+Must handle:
+
+Spaces → replaced or removed
+Special characters (@#$%^&*())
+Path traversal attempts (../../file.xlsx)
+Unicode edge cases (if present)
+
+Ensure:
+
+Output filenames are safe for:
+Filesystem
+URLs (used in T5-3)
+No unsafe characters remain
+4. Separation of Concerns
+
+Ensure naming logic is:
+
+Encapsulated (e.g., file_naming.py or utility function)
+NOT embedded inside:
+FastAPI route
+CSV writer functions
+Reusable across:
+clean writer
+rejected writer
+5. Integration Readiness
+
+Validate compatibility with downstream tickets:
+
+T5-1 / T5-2:
+Writers can consume filenames cleanly
+T5-3:
+Filenames are URL-safe without additional transformation
+6. Test Coverage (Critical)
+
+Evaluate unit + integration tests:
+
+Required Unit Tests
+Correct filename format
+Sanitization behavior
+Matching base identifier for clean/rejected
+Edge cases:
+filenames with spaces
+filenames with symbols
+empty or malformed names
+Required Integration Tests
+Multiple uploads → unique filenames
+Same upload twice → different filenames
+Clean + rejected share base name
+7. Edge Case Handling
+
+Explicitly verify behavior for:
+
+Input filename with no extension
+Very long filenames
+Duplicate uploads within same second
+Empty filename or missing metadata
+8. Code Quality
+
+Evaluate:
+
+Function naming clarity
+Simplicity (no over-engineering)
+Readability and maintainability
+Type hints
+Docstrings explaining:
+naming strategy
+sanitization rules
+🔍 Output Format
+
+Provide your review in this exact structure:
+
+1. Executive Summary
+Is this production-ready for MVP?
+Any blockers?
+2. ✅ What Is Strong
+List well-implemented aspects
+3. 🔴 Critical Issues (Must Fix Before Merge)
+Anything that risks:
+collisions
+unsafe filenames
+broken downstream integration
+4. 🟡 Medium Risks
+Non-breaking but important improvements
+5. 🟢 Minor Issues
+Style, clarity, minor cleanup
+6. 🧪 Test Coverage Gaps
+Missing tests
+Weak assertions
+Edge cases not covered
+7. 🔧 Required Fixes
+Concrete, actionable steps
+8. 🧠 Final Verdict
+
+Choose one:
+
+✅ READY
+⚠️ READY WITH MINOR FIXES
+❌ NOT READY
+⚠️ Important Context
+This is MVP, but:
+File naming is not a place to cut corners
+Bugs here cascade into multiple downstream systems
+Assume:
+Local filesystem storage
+No cloud storage yet
+No async processing yet
+🚫 Do NOT
+Do NOT rewrite the code
+Do NOT suggest future enhancements outside MVP scope
+Focus strictly on correctness, safety, and testability
+
+This review should be strict, practical, and production-minded.
+```
+
+- **Summary of Response:**
+    - Structured a rigorous QA review framework focused on correctness, determinism, and filename safety
+    - Emphasized collision avoidance, sanitization, and separation of concerns as critical evaluation areas
+    - Defined explicit unit and integration test requirements, including edge cases
+    - Standardized output format for consistent, production-grade code reviews
+- **Impact:**
+    - Established a high-quality QA standard for infrastructure-level components
+    - Reduced risk of downstream failures in file handling and API layers
+    - Ensured consistency and thoroughness in future code reviews for the project
