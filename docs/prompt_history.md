@@ -7454,3 +7454,398 @@ Begin review.
     - Ensures downstream debugging and user trust through structured failure handling
     - Acts as a gatekeeper before progressing to T5, preventing fragile system behavior
 ---
+
+### Prompt ID: P-050
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate QA checkpoint review prompt for Claude
+#### Prompt
+```
+ok now that we've completed up to E4 - Validation Engine-  
+please generate a prompt to Claude to do a checkpoint review of all the code as it stands, 
+and also take into consideration the input_contract, fixtures, testing, MVP 
+as a lead senior QA / Data Engineer
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt directing Claude to act as a senior QA / Data Engineer
+    - Emphasized review of validation logic, input contracts, fixtures, and test coverage
+    - Included focus on MVP alignment and production readiness
+    - Encouraged identification of gaps, edge cases, and improvement recommendations
+- **Impact:**
+    - Enabled a formal quality checkpoint before proceeding further in development
+    - Helped ensure alignment between implementation and defined data contracts/testing strategy
+    - Increased confidence in system reliability and readiness for next build phase
+---
+
+### Prompt ID: P-051
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Full MVP pipeline checkpoint audit (E1–E4)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — E4 Checkpoint Review
+
+## Senior QA Engineer + Lead Data Engineer System Audit (MVP Gate)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer** performing a **full checkpoint audit** of the Donor Bureau pipeline after completion of:
+
+> ✅ E1 — Ingestion (Upload)
+> ✅ E2 — File Processing (Parser)
+> ✅ E3 — Data Transformation (Mapping, Normalization, Client Injection, Orchestration)
+> ✅ E4 — Validation Engine (T4-1 → T4-4)
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Determine whether the system is:
+
+> **Production-ready at MVP level OR blocked by critical risks**
+
+You must evaluate the **entire codebase holistically**, not just individual modules.
+
+---
+
+# 🧠 SYSTEM CONTEXT
+
+### Pipeline:
+
+upload → parse → map → normalize → client → validate (T4-1, T4-2) → split → error handling → (T5 next)
+
+### Output Goal:
+
+A **clean, deterministic CSV** + **rejected rows CSV**
+
+---
+
+# ⚠️ REVIEW SCOPE (MANDATORY)
+
+You MUST evaluate:
+
+---
+
+## 1. 🧱 Architecture Integrity
+
+* Are stage boundaries clean and enforced?
+* Any leakage of responsibilities?
+
+  * validation in parser?
+  * transformation in validator?
+  * logic inside orchestrator?
+* Is pipeline orchestration deterministic and strict?
+
+---
+
+## 2. 📄 Input Contract Alignment
+
+Cross-check **code vs `input_contract.md`**:
+
+* Header detection logic matches contract?
+* Alias mapping matches documented aliases?
+* Metadata row behavior correct?
+* Sheet → Client derivation enforced?
+* Any drift between contract and implementation?
+
+🚨 Flag ANY contract/code mismatch
+
+---
+
+## 3. 🧪 Fixture Strategy & Readiness
+
+Evaluate against:
+
+* `fixture_validation.md`
+* T7-1 expectations
+
+Determine:
+
+* Are we violating the rule:
+
+  > “No T2–T4 logic before fixture validation”?
+
+* Are current tests:
+
+  * synthetic only?
+  * or representative of real-world formats?
+
+🚨 Identify:
+
+* Missing fixture coverage
+* False confidence risks
+
+---
+
+## 4. 🧪 Test Coverage (CRITICAL)
+
+Audit all tests:
+
+### Required Coverage Areas
+
+#### Ingestion
+
+* file type validation
+* empty file handling
+
+#### Parser
+
+* multi-sheet handling
+* header offset detection
+* metadata rows
+* no-header sheets
+* Instructions/non-data sheets
+
+#### Mapping
+
+* alias coverage
+* case insensitivity
+* missing fields behavior
+
+#### Normalization
+
+* date parsing (multiple formats + Excel serial)
+* ZIP preservation
+* whitespace handling
+
+#### Client Injection
+
+* multi-sheet correctness
+* whitespace trimming
+
+#### Validation (T4)
+
+* null/missing fields
+* type/value validation
+* edge cases (ZIP, state, amount, date)
+* row splitting integrity
+
+#### Error Handling
+
+* 400 vs 500 vs 200 separation
+* structured API responses
+* no stack trace leakage
+
+---
+
+## 5. 📊 Data Integrity Guarantees
+
+You MUST verify:
+
+* No row loss across pipeline
+* No duplication introduced
+* Deterministic outputs (same input → same output)
+* Clean/rejected split correctness
+
+🚨 This is the highest priority
+
+---
+
+## 6. ⚠️ Validation Engine Audit (E4)
+
+Deeply evaluate:
+
+### T4-1 / T4-2
+
+* vectorized vs row-wise logic
+* correctness of rules
+* trimming BEFORE validation
+* combined rejection_reason logic
+
+### T4-3
+
+* row conservation
+* no leakage
+* whitespace/null handling correctness
+
+### T4-4
+
+* correct HTTP classification
+* structured responses
+* logging completeness
+* no stack traces
+
+---
+
+## 7. 🔥 Error Handling & Observability
+
+* Are all errors:
+
+  * classified?
+  * logged?
+  * traceable?
+
+* Can a developer debug failures easily?
+
+* Any silent failures?
+
+---
+
+## 8. ⚙️ MVP Scope Discipline
+
+You MUST assess:
+
+* Is anything over-engineered?
+* Is anything missing that blocks MVP?
+
+MVP definition:
+
+> Upload Excel → get clean CSV + rejected CSV reliably
+
+---
+
+## 9. 📉 Risks & Technical Debt
+
+Identify:
+
+### 🔴 Critical Risks
+
+* break correctness or data integrity
+
+### 🟡 Medium Risks
+
+* scalability, performance, maintainability
+
+### 🟢 Minor Issues
+
+* cleanup, polish
+
+---
+
+## 10. 🔗 Stage Integration
+
+Verify:
+
+* stages connect correctly
+* data contracts between stages are respected
+* no schema drift between stages
+
+---
+
+# 🚨 SPECIAL FOCUS AREAS
+
+You MUST explicitly check:
+
+* alias drift (mapping.json vs contract)
+* metadata-row handling end-to-end
+* multi-sheet + multi-client behavior
+* Instructions/non-data sheet exclusion
+* validation vs system error separation
+
+---
+
+# 📋 OUTPUT FORMAT (STRICT)
+
+Return:
+
+---
+
+## 1. 🧠 Executive Summary
+
+PASS / FAIL / PASS WITH RISKS
+
+---
+
+## 2. 🔴 Critical Issues
+
+(must fix before T5)
+
+---
+
+## 3. 🟡 Medium Risks
+
+(should fix soon)
+
+---
+
+## 4. 🟢 Minor Issues
+
+(cleanup)
+
+---
+
+## 5. 🧪 Test Coverage Gaps
+
+---
+
+## 6. 📄 Contract vs Code Drift
+
+---
+
+## 7. ⚙️ MVP Readiness Assessment
+
+Is system ready for:
+
+> T5 — Output Generation (CSV writing + download)?
+
+---
+
+## 8. 🧠 Final Verdict
+
+One of:
+
+* ✅ READY FOR T5
+* ⚠️ READY WITH MINOR FIXES
+* ❌ BLOCKED
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is NOT a casual review.
+
+This is a **production checkpoint audit**.
+
+Think like:
+
+* a data engineer responsible for data correctness
+* a QA engineer responsible for failure detection
+* a hiring manager reviewing this project
+
+---
+
+If this system fails:
+
+> data trust is broken, and the pipeline is not usable.
+
+Be strict.
+Be skeptical.
+Think in edge cases.
+
+---
+
+Begin full system audit.
+
+```
+
+- **Summary of Response:**
+    - Defined a comprehensive QA audit framework covering architecture, validation, contracts, and data integrity
+    - Enforced strict MVP readiness criteria with PASS/FAIL gating and risk classification
+    - Introduced deep validation of test coverage, fixture realism, and contract/code alignment
+Emphasized deterministic outputs and zero data loss as top priorities
+- **Impact:**
+    - Established a formal production checkpoint before proceeding to T5 (CSV output)
+    - Elevated quality bar from feature completion to system reliability and trustworthiness
+    - Identified audit structure that can be reused for future pipeline stages and reviews
+---
+
+### Prompt ID: P-052
+- **Author:** Mark
+- **Target:** Claude
+- **Purpose:** Generate QA checkpoint review report documentation
+#### Prompt
+```
+ok now please as a senior level project manager / QA 
+generate a report on the approach and results of the checkpoint review in .md format 
+to be included in the docs/checkpoints/*.md of the repo
+```
+
+- **Summary of Response:**
+    - Produced a structured markdown report for checkpoint review documentation
+    - Included sections for review scope, methodology, findings, and results
+    - Summarized validation of implemented features against acceptance criteria
+    - Highlighted any gaps, risks, or areas needing improvement
+- **Impact:**
+    - Established a standardized QA reporting format for project checkpoints
+    - Improved visibility into progress and quality across development phases
+    - Enabled consistent documentation for stakeholder and repo-level review
+---
