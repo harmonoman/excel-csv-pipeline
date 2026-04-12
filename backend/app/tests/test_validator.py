@@ -336,17 +336,11 @@ def test_t42_does_not_modify_data_values():
 
 
 def test_amount_infinity_rejected():
-    """
-    float('inf') passes > 0 check — documented as known MVP limitation.
-    This test captures current behavior. Post-MVP should add explicit
-    infinity check: not (math.isfinite(numeric) and numeric > 0).
-    """
-    import math
+    """float('inf') is not a valid donation amount and must be rejected."""
     df = make_df(make_valid_row(DonationAmount=float("inf")))
     result = validate_rows(df)
-    # Currently passes — document that infinity is a known gap
-    # If this test starts failing, infinity has been added to validation
-    assert result.iloc[0]["_rejection_reason"] is not None  # row exists
+    assert result.iloc[0]["_is_valid"] == False
+    assert "Invalid Amount" in result.iloc[0]["_rejection_reason"]
 
 
 def test_state_whitespace_trimmed_then_accepted():

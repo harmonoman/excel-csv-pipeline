@@ -10406,3 +10406,279 @@ If anything is ambiguous, assume strict MVP correctness and testability over con
     - Ensured logging cannot interfere with core data transformation or outputs
     - Standardized QA expectations for future pipeline instrumentation work
 ---
+
+### Prompt ID: P-069
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Comprehensive QA checkpoint review prompt for completed pipeline (T5 Output Generation)
+#### Prompt
+```
+Ok now that we've completed up to T5 - Output generation
+- please generate a prompt to Claude to do a checkpoint review of all the code as it stands and also take into consideration the input_contract, fixtures, testing, MVP as a lead senior QA / Data Engineer
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt for Claude requesting a full checkpoint review of the existing codebase up to T5 Output Generation
+    - Focused the review on input_contract compliance, test fixtures, and existing test coverage
+    - Framed the request from a senior QA / Data Engineering perspective aligned with MVP constraints and production readiness
+- **Impact:**
+    - Established a formal QA checkpoint gate in the workflow
+    - Reinforced adherence to input contracts and testing standards
+    - Improved alignment of implementation with MVP requirements and production-grade expectations
+---
+
+### Prompt ID: P-070
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Senior QA checkpoint audit prompt for full Donor Bureau pipeline review
+#### Prompt
+```
+🧪 Claude Code Review Prompt — E5 Checkpoint Review (Senior QA / Lead Data Engineer)
+
+You are acting as a Senior QA Engineer + Lead Data Engineer reviewer performing a full system checkpoint audit of the Donor Bureau Excel Pipeline.
+
+This review occurs after completion of:
+
+E1 → E5 (T0–T5) full pipeline implementation
+
+The system now includes:
+
+ingestion (FastAPI upload endpoint)
+multi-sheet parsing
+mapping + normalization
+validation engine
+row splitting (clean vs rejected)
+schema enforcement
+CSV output generation
+deterministic file naming
+download endpoints
+logging layer
+full test suite with fixtures
+🧠 Your Objective
+
+Perform a production-grade checkpoint review of the entire codebase as a cohesive system.
+
+You are NOT reviewing individual tickets.
+
+You are validating whether the system is:
+
+✅ Correct
+✅ Deterministic
+✅ Test-driven compliant
+✅ Aligned with input_contract.md
+✅ Safe for MVP production use
+
+📚 REQUIRED CONTEXT TO EVALUATE AGAINST
+
+You MUST evaluate the code against these system artifacts:
+
+1. Input Contract (Source of Truth)
+/docs/input_contract.md
+
+Key expectations:
+
+multi-sheet workbook ingestion
+metadata row skipping before headers
+header detection within first N rows
+alias-based column mapping
+client derived from sheet name only
+strict final schema enforcement
+2. Fixture Validation System (Critical Gate)
+/docs/fixture_validation.md
+backend/tests/fixtures/
+
+You must verify:
+
+fixture coverage matches real-world patterns
+metadata-before-header cases are tested end-to-end
+multi-sheet + mixed template workbooks are covered
+invalid header / missing header cases are tested
+donation formats and ZIP edge cases are tested
+
+⚠️ If fixtures do NOT fully validate input contract assumptions, this is a BLOCKER.
+
+3. MVP Product Constraints
+
+This is a strict MVP system:
+
+✔ Allowed:
+
+pandas
+FastAPI
+openpyxl
+synchronous processing
+local file output
+console logging
+
+❌ Not allowed:
+
+distributed systems
+async job queues
+external storage
+enterprise observability stacks
+4. Pipeline Architecture (Must Be Preserved)
+
+Final pipeline must remain:
+
+parse → map → normalize → validate → split → enforce schema → output
+
+With strict separation:
+
+parsing = structure detection
+mapping = alias resolution
+normalization = formatting only
+validation = business rules only
+split = clean vs rejected
+schema enforcement = final contract gate
+output = file writing only
+🎯 REVIEW TASKS
+1. Contract Compliance Audit (CRITICAL)
+
+Verify:
+
+Does every rule in input_contract.md exist in code?
+Are there any implementation shortcuts that violate the contract?
+Are metadata rows handled correctly end-to-end?
+Is header detection consistent with contract definition?
+Is client assignment strictly from sheet name only?
+2. End-to-End Pipeline Correctness
+
+Check:
+
+parse → map → normalize → validate → split → enforce → output integrity
+No stage leaks responsibilities into another
+No silent data loss or mutation bugs
+No inconsistent DataFrame states across stages
+3. Determinism Audit (VERY IMPORTANT)
+
+Verify:
+
+identical input → identical output CSVs
+stable ordering in clean_df
+no randomness in header detection
+no timestamp-dependent data leakage into dataset
+4. Output Layer Validation
+
+Check:
+
+clean_donations.csv:
+exact schema
+correct ordering
+no index column
+rejected_rows.csv:
+rejection_reason always present
+includes original columns + reason
+download endpoints:
+correct file mapping
+no path traversal risk
+5. Validation Engine Integrity
+
+Ensure:
+
+null validation works correctly
+type validation is strict but correct
+rejection reasons are consistent and human-readable
+no row leaks between clean/rejected sets
+clean_df has zero invalid values
+6. Fixture Coverage Audit (BLOCKING CHECK)
+
+Verify:
+
+Multi-sheet workbooks tested end-to-end
+Metadata-before-header real-world pattern tested in full pipeline
+Header offset logic validated via fixtures
+Mixed valid/invalid row datasets included
+Instructions/non-data sheet exclusion tested
+DonationDate format variety covered
+ZIP edge case (leading zeros) covered
+
+⚠️ If ANY are missing → BLOCK RELEASE
+
+7. System-Level Error Handling Review
+
+Verify:
+
+corrupted file → 400
+invalid file type → 400
+missing mapping.json → startup failure
+unexpected exceptions → 500 safe response
+validation failures → 200 with rejected rows
+
+Ensure:
+
+no stack traces leak to API responses
+error messages are structured and consistent
+8. Logging Review (MVP OBSERVABILITY)
+
+Check:
+
+logs include:
+filename
+total_rows
+clean_rows
+rejected_rows
+processing time
+logging does NOT:
+mutate data
+affect determinism
+slow pipeline significantly
+🚨 RED FLAGS (AUTO-FAIL CONDITIONS)
+
+Fail the system if ANY occur:
+
+Input contract mismatch not explicitly resolved
+Fixtures do not validate real-world metadata/header behavior
+Any stage leaks responsibilities (e.g., validation in parser)
+Non-deterministic outputs
+Silent row loss or corruption
+Clean/rejected counts do not reconcile with input
+Schema enforcement is not strict at final stage
+📦 OUTPUT FORMAT
+
+Return review in:
+
+1. Executive Summary
+
+(pass / pass with risks / fail)
+
+2. Contract Compliance Findings
+alignment gaps
+violations
+3. Pipeline Architecture Review
+stage correctness
+separation of concerns
+4. Data Integrity & Determinism
+correctness of outputs
+reproducibility
+5. Fixture Coverage Audit
+what is covered
+what is missing (BLOCKING)
+6. Test Suite Quality Review
+unit tests
+integration tests
+missing scenarios
+7. System Risk Assessment
+production readiness risks
+8. Final Recommendation
+READY FOR E6 / BLOCKED / NEEDS FIXES
+🧠 Final Instruction
+
+Be strict.
+
+This is a data pipeline correctness gate, not a feature review.
+
+Prioritize:
+
+correctness over convenience
+determinism over flexibility
+contract fidelity over implementation shortcuts
+```
+
+- **Summary of Response:**
+    - Defined a strict senior-level QA gate prompt for full system review of the Donor Bureau pipeline (E1–E5)
+    - Established evaluation criteria across contract compliance, determinism, fixtures, architecture, and output integrity
+    - Introduced blocking conditions and production-readiness gatekeeping rules for E6 progression
+- **Impact:**
+    - Formalized a hard QA checkpoint for production readiness validation
+    - Enforced strict contract-first, deterministic design principles across the pipeline
+    - Created a go/no-go decision framework that governs advancement to next development phase
