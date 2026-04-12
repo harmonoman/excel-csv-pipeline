@@ -7849,3 +7849,66 @@ to be included in the docs/checkpoints/*.md of the repo
     - Improved visibility into progress and quality across development phases
     - Enabled consistent documentation for stakeholder and repo-level review
 ---
+
+### Prompt ID: P-053
+- **Author:** Mark
+- **Target:** Claude
+- **Purpose:** Validate completion and alignment of sample file validation ticket
+#### Prompt
+```
+ok so in our project board we still have this ticket under the in progress column:
+
+T0-3 - Sample file validation
+
+Description
+Validate all test fixture Excel files against the defined input contract and assumptions. Ensure the pipeline design can handle multiple templates within a single workbook, variable header row positions, and sheet-level client segmentation. Identify mismatches early and either update assumptions or adjust fixtures accordingly.
+Acceptance Criteria
+* All fixture files reviewed against input contract and assumptions checklist
+* At least one fixture workbook includes:
+   * Multiple sheets
+   * Each sheet representing a different client (via sheet name)
+   * Different column naming conventions (template variations)
+   * Different header row positions (not always row 1)
+   * Header row location is validated for each sheet (correct row identified or failure expected)
+* Any violations are:
+   * Documented
+   * Resolved via contract update OR fixture exclusion
+* Confirmed that pipeline design can handle:
+   * Multi-sheet ingestion
+   * Mixed templates within a single workbook
+   * Header detection across sheets
+* No “unknown” or undefined formats remain in accepted fixture set
+Assumptions
+* Fixture set represents real-world variability, including:
+   * Multiple templates within one workbook
+   * Header rows appearing within the first N rows (not guaranteed row 1)
+   * Each sheet corresponds to a distinct client (sheet name used as Client field)
+* File sizes remain under 10MB
+* All relevant edge cases are captured within fixture library
+Test Plan
+* Manually validate each fixture file against:
+   * Input contract
+   * Assumptions checklist
+* For each sheet in each fixture:
+   * Identify expected header row location
+   * Identify expected client value (sheet name)
+   * Confirm template variation coverage
+* Document pass/fail for:
+   * Header detection viability
+   * Mapping compatibility
+   * Structural assumptions
+* Record and resolve all discrepancies before development proceeds
+
+now that we are at the E4 -> E5 junction please review this ticket to make sure we haven't drifted and also is it completed? if not what needs to be done to complete it?
+```
+
+- **Summary of Response:**
+    - Determined ticket is likely incomplete without explicit validation artifacts (checklist, documentation, pass/fail records)
+    - Identified missing outputs: fixture audit log, header row mappings, and documented violations/resolutions
+    - Emphasized need for confirmed coverage of all edge cases (multi-sheet, template variation, header detection)
+    - Recommended final validation report to formally close ticket
+- **Impact:**
+    - Clarified definition of “done” for fixture validation phase
+    - Prevented premature progression to E5 without verified input reliability
+    - Established need for documented validation artifacts to support pipeline robustness
+---
