@@ -5462,3 +5462,1995 @@ Begin review.
     - Catches subtle production risks like NaN/whitespace misclassification and row leakage
     - Reinforces deterministic, test-driven validation behavior in early enforcement layer
 ---
+
+### Prompt ID: P-041
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for strict data validation (TDD MVP ticket)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T4-2 - Type and value validators: 
+Description 
+DonationAmount must be numeric and > 0. 
+DonationDate must be a valid date. 
+State must be valid 2-letter US abbreviation. 
+ZIP must be 5 digits. 
+
+Acceptance criteria 
+Trim BEFORE validation 
+Amount = 0 → rejected 
+Amount = "abc" → rejected 
+State = "XX" → rejected 
+ZIP = "1234" → rejected 
+Valid date string parses correctly 
+
+Test plan 
+Parametrized tests for each rule, boundary cases (0 vs 0.01, 4-digit vs 5-digit ZIP).
+```
+
+- **Summary of Response:**
+    - Produced a structured implementation prompt for Claude focused on strict TDD-driven     - validation logic
+    - Defined explicit data validation rules for donation ingestion (amount, date, state, ZIP)
+    - Emphasized preprocessing requirement (trim before validation) and clear reject conditions
+    - Outlined parametrized test strategy with boundary cases for robust coverage
+- **Impact:**
+    - Formalized core data quality gate for ingestion pipeline
+    - Established strict validation contract to prevent bad warehouse data
+    - Reinforced test-driven development approach as a required implementation standard
+---
+
+### Prompt ID: P-042
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** T4-2 validation layer implementation (type + domain rules with TDD)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-2 Type & Value Validators (Lead Data Engineer + MVP TDD)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T4-2 — Type and Value Validation Layer**
+
+for the Donor Bureau Excel ingestion pipeline.
+
+---
+
+# 🎯 ROLE OF THIS STAGE (CRITICAL CONTEXT)
+
+This is the **second enforcement gate** after T4-1 (null/missing validation).
+
+Pipeline context:
+
+text id="pipeline_flow"
+parse → map → normalize → client_injection → T4-1 → T4-2 → T4-3 → enforce_schema → output
+
+---
+
+# ⚠️ STRICT CONSTRAINTS
+
+This stage MUST:
+
+* ❌ NOT handle missing field detection (T4-1 responsibility)
+* ❌ NOT perform mapping
+* ❌ NOT perform normalization (except trimming required for validation safety)
+* ❌ NOT enforce schema structure
+* ❌ NOT mutate business logic outside validation classification
+
+It ONLY:
+
+* validates type correctness
+* validates domain rules
+* classifies valid vs invalid rows
+* appends rejection reasons
+
+---
+
+# 🎯 OBJECTIVE
+
+Implement `validator.py` enhancements (or a dedicated function/module) that validates:
+
+* DonationAmount
+* DonationDate
+* State
+* Zip
+
+and routes invalid rows into `rejected_df` with deterministic rejection reasons.
+
+---
+
+# 📋 INPUT EXPECTATIONS
+
+You are receiving a DataFrame that has:
+
+* already passed T4-1 (no null/empty required fields)
+* already been mapped (canonical schema)
+* already been normalized (basic casing/format rules applied)
+
+---
+
+# 🧪 VALIDATION RULES
+
+## 1. DonationAmount
+
+### Rules:
+
+* must be numeric
+* must be > 0
+
+### Invalid cases:
+
+* `"abc"` → reject
+* `0` → reject
+* negative values → reject
+
+### Valid:
+
+* `0.01`, `1`, `100.5`
+
+---
+
+## 2. DonationDate
+
+### Rules:
+
+* must be parseable into a valid date (pandas datetime or equivalent)
+* must NOT be null (already enforced in T4-1, but still validate parseability)
+
+### Valid formats:
+
+* `MM/DD/YYYY`
+* `YYYY-MM-DD`
+* `March 16, 2025`
+* Excel serial dates
+
+### Invalid:
+
+* `"not a date"`
+* `"32/32/2025"`
+
+---
+
+## 3. State
+
+### Rules:
+
+* must be exactly 2-letter US state abbreviation
+* must be uppercase after validation
+
+### Invalid:
+
+* `"XX"`
+* `"NEW YORK"`
+* `"Cali"`
+
+---
+
+## 4. ZIP
+
+### Rules:
+
+* must be a string of exactly 5 digits
+* leading zeros MUST be preserved
+
+### Invalid:
+
+* `"1234"`
+* `"123456"`
+* `"12A45"`
+
+---
+
+# ⚠️ PRE-CONDITION: TRIMMING
+
+Before validation:
+
+* strip whitespace from all string inputs used in validation checks
+
+Example:
+
+* `" NY "` → `"NY"`
+
+---
+
+# 📤 OUTPUT CONTRACT
+
+Return:
+
+python id="output_contract"
+clean_df
+rejected_df
+
+---
+
+## rejected_df MUST include:
+
+* rejection_reason column
+* original row data intact
+* no partial modification of valid fields
+
+---
+
+# 📌 REJECTION RULES
+
+Each row may accumulate multiple errors.
+
+### Format:
+
+text id="error_format"
+"Invalid Amount, Invalid State"
+
+---
+
+### Required messages:
+
+| Field          | Message          |
+| -------------- | ---------------- |
+| DonationAmount | "Invalid Amount" |
+| DonationDate   | "Invalid Date"   |
+| State          | "Invalid State"  |
+| Zip            | "Invalid Zip"    |
+
+---
+
+# 🧪 TEST-DRIVEN REQUIREMENTS
+
+You MUST implement unit tests.
+
+---
+
+## 1. Amount Tests
+
+* `"abc"` → rejected
+* `0` → rejected
+* `0.01` → accepted
+
+---
+
+## 2. Date Tests
+
+* valid formats → accepted
+* invalid strings → rejected
+
+---
+
+## 3. State Tests
+
+* `"NY"` → valid
+* `"XX"` → invalid
+
+---
+
+## 4. ZIP Tests
+
+* `"12345"` → valid
+* `"1234"` → invalid
+* `"123456"` → invalid
+
+---
+
+## 5. Edge Case Tests
+
+* boundary values
+* mixed valid + invalid rows
+* malformed numeric strings
+
+---
+
+# ⚙️ IMPLEMENTATION GUIDELINES
+
+DO:
+
+* use pandas-safe vectorized operations where possible
+* ensure deterministic outputs
+* avoid row-by-row loops unless absolutely necessary
+* preserve input immutability
+
+---
+
+DO NOT:
+
+* perform null checking (T4-1 responsibility)
+* modify schema structure
+* normalize casing beyond validation requirements
+* change upstream transformations
+
+---
+
+# 🧠 SYSTEM ROLE CLARITY
+
+This stage is:
+
+> “data correctness enforcement (type + domain rules)”
+
+NOT transformation.
+
+---
+
+# 🚨 COMMON PITFALLS
+
+Avoid:
+
+* treating empty strings again (already handled in T4-1)
+* inconsistent date parsing behavior across formats
+* ZIP coercion to int (DESTROYS leading zeros)
+* state validation against non-normalized casing
+* silent coercion of invalid values
+
+---
+
+# 📊 SUCCESS CRITERIA
+
+This ticket is complete when:
+
+* all invalid values correctly routed to rejected_df
+* clean_df contains only valid records
+* rejection reasons are deterministic and consistent
+* all tests pass
+* no mutation of input data occurs
+
+---
+
+# 🧠 FINAL NOTE
+
+This layer ensures:
+
+> downstream analytics only receive structurally valid and semantically meaningful donation records.
+
+It is a **data quality enforcement gate**, not a transformation layer.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Designed a strict T4-2 validation module separating clean vs rejected records
+    - Implemented type + domain validation for DonationAmount, DonationDate, State, and ZIP using pandas-safe operations
+    - Built deterministic rejection aggregation logic with standardized error messages
+    - Added unit tests covering valid, invalid, and edge-case scenarios per field requirements
+- **Impact:**
+    - Established a robust data quality enforcement layer between normalization and schema enforcement
+    - Ensured only validated, warehouse-safe donation records proceed downstream
+    - Reinforced TDD-driven structure for future pipeline validation stages
+---
+
+### Prompt ID: P-043
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Production-grade QA review of T4-2 data validation layer
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-2 QA / Senior Test Engineer Review
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer reviewer**.
+
+Your task is to perform a **strict production-grade review** of the implementation for:
+
+> **T4-2 — Type and Value Validators**
+
+This is a **critical data quality enforcement layer** in the Donor Bureau pipeline.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Validate that the implementation correctly enforces:
+
+* numeric + > 0 constraint for DonationAmount
+* robust date parsing for DonationDate
+* strict 2-letter US state validation
+* strict 5-digit ZIP validation (with leading zero preservation)
+* correct routing into clean_df vs rejected_df
+
+---
+
+# ⚠️ REVIEW CONTEXT
+
+Pipeline stage:
+
+text id="pipeline_flow"
+parse → map → normalize → T4-1 → T4-2 → T4-3 → enforce_schema → output
+
+You are reviewing a system that has already passed:
+
+* mapping
+* normalization
+* null/empty validation (T4-1)
+
+So **DO NOT expect missing-field handling here**.
+
+---
+
+# 🧪 CORE VALIDATION CHECKS
+
+## 1. DonationAmount
+
+Verify:
+
+* numeric validation is correct
+* rejects `"abc"`
+* rejects `0`
+* rejects negative values
+* accepts `0.01`, `1`, `100.5`
+
+🚨 Watch for:
+
+* accidental string coercion
+* pandas silent conversion to NaN
+* float comparison errors
+
+---
+
+## 2. DonationDate
+
+Verify:
+
+* robust parsing across formats:
+
+  * MM/DD/YYYY
+  * YYYY-MM-DD
+  * natural language dates
+  * Excel serial dates
+
+* invalid dates properly rejected
+
+🚨 Watch for:
+
+* inconsistent datetime parsing across rows
+* silent coercion to NaT without capture
+* timezone artifacts (if present)
+
+---
+
+## 3. State Validation
+
+Verify:
+
+* only valid 2-letter US state codes accepted
+* must be uppercase comparison-safe
+
+Reject:
+
+* `"XX"`
+* `"New York"`
+* `"california"`
+
+🚨 Watch for:
+
+* missing normalization assumption (should already be normalized upstream)
+* accidental partial matches
+
+---
+
+## 4. ZIP Validation
+
+Verify:
+
+* exactly 5 digits
+* must remain string
+* leading zeros preserved
+
+Reject:
+
+* `"1234"`
+* `"123456"`
+* `"12A45"`
+
+🚨 CRITICAL FAILURE MODE:
+
+* ZIP converted to int → destroys leading zeros
+
+---
+
+# 📤 OUTPUT INTEGRITY CHECK
+
+Ensure:
+
+* clean_df contains ONLY valid rows
+* rejected_df contains ONLY invalid rows
+* NO row appears in both
+* NO row is dropped silently
+
+---
+
+# 📌 REJECTION LOGIC REVIEW
+
+Check:
+
+* rejection_reason exists in rejected_df
+* reasons are deterministic and consistent
+
+Expected format:
+
+text id="reason_format"
+"Invalid Amount, Invalid State"
+
+Verify:
+
+* ordering is stable
+* duplicates are not repeated
+* formatting is consistent
+
+---
+
+# 🧪 TEST COVERAGE REVIEW
+
+Confirm existence of:
+
+## Amount tests
+
+* "abc" → reject
+* 0 → reject
+* 0.01 → accept
+
+## Date tests
+
+* valid formats → accept
+* invalid formats → reject
+
+## State tests
+
+* "NY" → accept
+* "XX" → reject
+
+## ZIP tests
+
+* "12345" → accept
+* "1234" → reject
+* "123456" → reject
+
+## Edge cases
+
+* mixed valid/invalid rows
+* boundary numeric values
+* malformed numeric strings
+
+---
+
+# 🚨 RED FLAGS (FAIL REVIEW IF PRESENT)
+
+Immediately fail or flag if:
+
+* ZIP cast to int anywhere
+* date parsing inconsistencies between rows
+* silent NaT or NaN propagation without explicit handling
+* inconsistent rejection_reason formatting
+* row mutation instead of classification
+* missing vectorization where required
+* reuse of T4-1 logic incorrectly (duplicate validation layers)
+
+---
+
+# 📊 PERFORMANCE & SAFETY REVIEW
+
+Check:
+
+* unnecessary row-wise iteration (iterrows)
+* pandas inefficiency on large datasets
+* accidental DataFrame mutation across stages
+* correct use of copies vs views
+
+---
+
+# 🧠 SYSTEM INTEGRITY CHECK
+
+Evaluate:
+
+* Can invalid data still slip through into clean_df?
+* Are valid rows ever incorrectly rejected?
+* Is behavior deterministic across runs?
+
+---
+
+# 📋 OUTPUT FORMAT
+
+Return:
+
+## 1. Executive Summary
+
+PASS / FAIL / PASS WITH RISKS
+
+## 2. Critical Issues
+
+* correctness-breaking bugs
+
+## 3. Data Integrity Risks
+
+* subtle pipeline risks
+
+## 4. Test Coverage Gaps
+
+* missing or weak tests
+
+## 5. Edge Cases Missed
+
+* unhandled real-world scenarios
+
+## 6. Final Verdict
+
+* READY FOR T4-3 OR BLOCKED
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is a **data correctness enforcement review**, not a style review.
+
+If this layer is wrong:
+
+> downstream analytics will silently ingest invalid financial donation data.
+
+Be strict.
+Be deterministic.
+Be production-focused.
+
+---
+
+Begin review.
+
+```
+
+- **Summary of Response:**
+    - Defined a strict QA review prompt for validating T4-2 data validation logic in a    - production-style pipeline
+    - Focused on correctness of numeric, date, state, and ZIP validation rules
+    - Included explicit failure conditions, edge cases, and data integrity checks
+    - Required structured QA output with PASS/FAIL decisioning and risk analysis
+- **Impact:**
+    - Established a rigorous QA gate for data quality enforcement before downstream processing
+    - Ensures validation layer reliability for financial donation ingestion pipeline
+    - Sets standard for production-grade reviewer prompts used in multi-stage ETL system testing
+---
+
+### Prompt ID: P-044
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for row splitting logic
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T4-3 - Row splitter (clean / rejected):
+
+Description
+After all validation rules run, split df into clean_df and rejected_df. Rejected df includes original data + rejection_reason column.
+
+Acceptance criteria
+clean_df has zero null values in any schema field
+clean_df + rejected_df row count = original row count
+rejected_df.rejection_reason is never empty
+Test plan
+Integration test: mixed input file, verify counts and no leakage between dfs.
+```
+
+
+- **Summary of Response:**
+
+- **Impact:**
+
+### Prompt ID: P-045
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Row splitting logic for clean vs rejected datasets
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-3 Row Splitter (Clean / Rejected)
+
+## Lead Data Engineer + MVP Test-Driven Implementation (Final)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T4-3 — Row Splitter (Clean vs Rejected Separation)**
+
+for the Donor Bureau Excel ingestion pipeline.
+
+---
+
+# 🎯 ROLE IN PIPELINE (CRITICAL CONTEXT)
+
+This is the **final stage of the validation layer**.
+
+Pipeline:
+
+parse → map → normalize → T4-1 → T4-2 → T4-3 → enforce_schema → output
+
+At this point:
+
+* all validation logic has already run
+* rows already contain `rejection_reason` if invalid
+
+Your job is to:
+
+> deterministically partition rows into clean_df and rejected_df
+
+---
+
+# ⚠️ STRICT CONSTRAINTS (NON-NEGOTIABLE)
+
+You MUST NOT:
+
+* ❌ perform any validation logic
+* ❌ recompute rejection_reason
+* ❌ modify row values
+* ❌ alter schema columns
+* ❌ drop rows
+
+You MUST ONLY:
+
+* split rows based on existing validation results
+* preserve data integrity 100%
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Implement a function (e.g. in `validator.py` or `splitter.py`):
+
+def split_rows(df):
+    return clean_df, rejected_df
+
+---
+
+# 📌 SPLITTING LOGIC (SOURCE OF TRUTH)
+
+## A row is:
+
+### ✅ CLEAN IF:
+
+* `rejection_reason` is:
+
+  * NaN OR
+  * empty string "" OR
+  * whitespace-only
+
+---
+
+### ❌ REJECTED IF:
+
+* `rejection_reason` contains ANY non-empty value
+
+---
+
+# ⚠️ IMPORTANT DETAIL
+
+You MUST treat:
+
+NaN == empty == whitespace-only
+
+as **clean condition**
+
+and anything else as rejected.
+
+---
+
+# 📤 OUTPUT CONTRACT
+
+## clean_df
+
+* contains ONLY valid rows
+* MUST NOT include `rejection_reason` column (drop it explicitly)
+* MUST have zero nulls in required schema fields
+
+---
+
+## rejected_df
+
+* contains ONLY invalid rows
+* MUST include `rejection_reason`
+* MUST preserve all original columns
+
+---
+
+# 📋 ACCEPTANCE CRITERIA (STRICT)
+
+## 1. Row Conservation (MANDATORY)
+
+python
+len(clean_df) + len(rejected_df) == len(df)
+
+🚨 FAIL if violated
+
+---
+
+## 2. No Leakage
+
+* no row appears in both outputs
+* no row is lost
+
+---
+
+## 3. Clean Data Guarantee
+
+* clean_df has:
+
+  * NO null values in required fields
+  * NO rejection_reason column
+
+---
+
+## 4. Rejected Data Guarantee
+
+* rejected_df:
+
+  * ALWAYS has rejection_reason
+  * rejection_reason is never null/empty
+
+---
+
+# 🧪 TEST-DRIVEN REQUIREMENTS
+
+You MUST implement integration tests.
+
+---
+
+## 1. Mixed Dataset (PRIMARY TEST)
+
+Input:
+
+* some valid rows
+* some rejected rows
+
+Expected:
+
+* correct split
+* correct counts
+* no overlap
+
+---
+
+## 2. All Clean Dataset
+
+Expected:
+
+* rejected_df empty
+* clean_df == input (minus rejection_reason)
+
+---
+
+## 3. All Rejected Dataset
+
+Expected:
+
+* clean_df empty
+* rejected_df == input
+
+---
+
+## 4. Edge Case — Single Row
+
+* correctly classified
+* no indexing issues
+
+---
+
+## 5. Edge Case — Whitespace rejection_reason
+
+* treated as CLEAN
+
+---
+
+# ⚙️ IMPLEMENTATION GUIDELINES
+
+DO:
+
+* use vectorized pandas filtering
+* use boolean masks
+* explicitly call `.copy()` when splitting
+* explicitly drop rejection_reason from clean_df
+
+---
+
+DO NOT:
+
+* use iterrows
+* mutate input DataFrame
+* rely on implicit pandas behavior
+* perform string operations without null safety
+
+---
+
+# 🚨 COMMON FAILURE MODES TO AVOID
+
+* treating "" differently than NaN
+* forgetting whitespace-only case
+* using `.isna()` without `.str.strip()` check
+* accidental overlap between clean/rejected
+* missing `.copy()` → downstream mutation bugs
+* leaking rejection_reason into clean_df
+
+---
+
+# 🧠 DESIGN PRINCIPLE
+
+This stage enforces:
+
+> “Every row is accounted for — either usable or explicitly rejected.”
+
+---
+
+# 📊 VALIDATION CHECKS (MANDATORY BEFORE COMPLETE)
+
+You MUST confirm:
+
+* total rows preserved exactly
+* no overlap between outputs
+* rejected_df.rejection_reason fully populated
+* clean_df contains only valid rows
+
+---
+
+# 🚫 DO NOT
+
+* re-run validation rules
+* modify T4-1 or T4-2 outputs
+* enforce schema (T5 responsibility)
+* introduce new business logic
+
+---
+
+# 🧠 SUCCESS CRITERIA
+
+This ticket is complete when:
+
+* split logic is deterministic and correct
+* all integration tests pass
+* zero row leakage exists
+* pipeline behavior remains stable
+
+---
+
+# 🧠 FINAL NOTE
+
+This is a **data integrity boundary**.
+
+If implemented incorrectly:
+
+> rows will be lost, duplicated, or misclassified — breaking trust in the system.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Defined strict separation logic based solely on rejection_reason
+    - Enforced non-mutating, deterministic data partitioning using pandas
+    - Introduced comprehensive integration test coverage including edge cases
+    - Emphasized data integrity guarantees (no loss, no overlap, full accountability)
+- **Impact:**
+    - Established a critical pipeline boundary ensuring trust in downstream data
+    - Eliminated ambiguity in how valid vs invalid rows are handled
+    - Provided a testable, production-safe contract for dataset splitting
+    - Reduced risk of silent data corruption or leakage in ingestion pipeline
+---
+
+### Prompt ID: P-046
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA audit for row splitting logic (clean vs rejected datasets)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-3 QA / Senior Test Engineer Review (Final)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer reviewer**.
+
+Your task is to perform a **strict, production-level audit** of:
+
+> **T4-3 — Row Splitter (Clean vs Rejected Separation)**
+
+This is a **data integrity boundary** in the Donor Bureau pipeline.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Ensure the implementation:
+
+* correctly partitions rows into clean_df and rejected_df
+* preserves ALL input rows (no loss, no duplication)
+* interprets `rejection_reason` deterministically
+* does NOT mutate input data
+* enforces strict separation with zero leakage
+
+---
+
+# ⚠️ PIPELINE CONTEXT
+
+parse → map → normalize → T4-1 → T4-2 → T4-3 → enforce_schema → output
+
+At this stage:
+
+* validation has already been completed
+* `rejection_reason` already exists (if row is invalid)
+
+This stage MUST ONLY split — nothing else.
+
+---
+
+# 🧪 CORE VALIDATION CHECKS
+
+## 1. Row Conservation (CRITICAL)
+
+You MUST verify:
+
+len(clean_df) + len(rejected_df) == len(input_df)
+
+🚨 If this fails → **FAIL REVIEW IMMEDIATELY**
+
+---
+
+## 2. No Row Leakage
+
+Confirm:
+
+* no row appears in BOTH outputs
+* no row is missing from BOTH outputs
+
+Check:
+
+* index overlap
+* duplicated rows
+* incorrect boolean masks
+
+---
+
+## 3. Clean Data Integrity
+
+Verify:
+
+* clean_df contains ONLY rows where:
+
+  * `rejection_reason` is null, empty, or whitespace-only
+
+* clean_df:
+
+  * has NO nulls in required fields
+  * does NOT include `rejection_reason` column
+
+🚨 Watch for:
+
+* whitespace `"   "` slipping through incorrectly
+* rejection_reason not dropped
+
+---
+
+## 4. Rejected Data Integrity
+
+Verify:
+
+* rejected_df contains ALL invalid rows
+* rejected_df includes `rejection_reason`
+* rejection_reason is NEVER:
+
+  * null
+  * empty
+  * whitespace-only
+
+---
+
+## 5. Deterministic Behavior
+
+Ensure:
+
+* same input → same outputs every run
+* no randomness or ordering dependency
+* boolean masks are stable and explicit
+
+---
+
+# ⚠️ CRITICAL EDGE CASES
+
+You MUST confirm correct handling of:
+
+## Whitespace Case
+
+rejection_reason = "   "
+
+→ MUST be treated as CLEAN
+
+---
+
+## NaN Case
+
+rejection_reason = NaN
+
+→ MUST be treated as CLEAN
+
+---
+
+## Mixed Case
+
+* mix of valid + invalid rows
+* counts must match exactly
+
+---
+
+## Single Row Dataset
+
+* correctly classified
+* no indexing issues
+
+---
+
+# 🚨 COMMON FAILURE MODES (HIGH PRIORITY)
+
+Flag immediately if present:
+
+* using `.isna()` without handling empty string
+* using `.str.strip()` without null safety
+* treating empty string differently than NaN
+* forgetting `.copy()` → mutation side effects
+* incorrect boolean masks causing overlap
+* rejection_reason leaking into clean_df
+* dropping rows instead of splitting
+
+---
+
+# 🧪 TEST COVERAGE REVIEW
+
+Ensure tests exist for:
+
+## 1. Mixed Dataset (REQUIRED)
+
+* both clean and rejected rows
+* verify counts + no leakage
+
+## 2. All Clean Dataset
+
+* rejected_df empty
+* clean_df == full dataset
+
+## 3. All Rejected Dataset
+
+* clean_df empty
+* rejected_df == full dataset
+
+## 4. Whitespace Edge Case
+
+* `"   "` treated as CLEAN
+
+## 5. Single Row Case
+
+* no indexing issues
+
+---
+
+# 📊 DATA INTEGRITY AUDIT
+
+Verify:
+
+* total rows preserved exactly
+* no duplicates introduced
+* no rows silently dropped
+* no mutation of original DataFrame
+
+---
+
+# 🧠 SYSTEM ROLE VALIDATION
+
+Confirm this module behaves strictly as:
+
+> “deterministic partitioning layer”
+
+NOT:
+
+* validation logic
+* transformation logic
+* enrichment logic
+
+---
+
+# 🚫 FAIL CONDITIONS
+
+Immediately FAIL review if:
+
+* row count mismatch
+* any overlap between clean/rejected
+* rejection_reason incorrectly interpreted
+* mutation of input data
+* missing `.copy()` safeguards
+* inconsistent filtering logic
+
+---
+
+# 📋 OUTPUT FORMAT
+
+Return:
+
+## 1. Executive Summary
+
+PASS / FAIL / PASS WITH RISKS
+
+## 2. Critical Issues
+
+(data integrity or correctness bugs)
+
+## 3. Data Integrity Risks
+
+(subtle pipeline risks)
+
+## 4. Test Coverage Gaps
+
+(missing or weak tests)
+
+## 5. Edge Cases Missed
+
+(real-world failure scenarios)
+
+## 6. Final Verdict
+
+READY FOR T4-4 OR BLOCKED
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is NOT a style review.
+
+This is a **data integrity audit**.
+
+If this layer is wrong:
+
+> rows will be lost, duplicated, or misclassified — breaking trust in the entire system.
+
+Be strict.
+Be deterministic.
+Think like production.
+
+---
+
+Begin review.
+
+```
+
+- **Summary of Response:**
+    - Enforced a strict QA audit framework focused on row conservation, deterministic splitting, and zero data leakage
+    - Defined critical validation checks, edge cases (NaN, whitespace), and failure conditions
+    - Required comprehensive test coverage across mixed, clean-only, rejected-only, and edge scenarios
+    - Positioned T4-3 as a pure partitioning layer with no transformation or validation responsibilities
+- **Impact:**
+    - Elevated T4-3 to a high-risk data integrity checkpoint with explicit pass/fail criteria
+    - Established rigorous QA standards that prevent silent data loss or misclassification
+    - Provided a reusable audit template for validating downstream pipeline stages
+---
+
+### Prompt ID: P-047
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude prompt for system-level error handling implementation
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T4-4 - System-level error handling:
+
+Description
+Implement centralized error handling for non-row-level failures across the pipeline. Capture and handle exceptions during file upload, parsing, sheet processing, and configuration loading.
+
+Ensure the system:
+
+Fails gracefully for invalid inputs or system issues
+Returns structured API error responses
+Clearly distinguishes between:
+System errors (fail request)
+Validation failures (return 200 with rejected rows)
+
+Acceptance Criteria
+Corrupted or unreadable .xlsx file → 400 response with descriptive error message
+Unsupported file type or malformed structure → 400 response with clear reason
+Missing or invalid mapping.json → application fails at startup with explicit error
+Unexpected/unhandled exceptions → 500 response with generic error message (no stack trace exposed)
+Validation failures (row-level issues) DO NOT trigger 400/500:
+Request returns 200
+Rejected rows are included in output as designed
+All system-level errors are logged with:
+file name (if available)
+pipeline stage (upload, parse, transform, etc.)
+error type/message
+
+Assumptions
+All pipeline components (parser, transformer, validator) raise structured exceptions
+Central handler (e.g., FastAPI exception middleware) is used to intercept errors
+Console logging is sufficient for MVP
+No sensitive data masking required for MVP
+
+Test Plan
+Unit test: corrupted file input → assert 400 response with structured error
+Unit test: invalid/missing mapping config → assert startup failure
+Integration test: force parser failure → assert 400 response and correct error structure
+Integration test: validation failures only → assert 200 response with rejected_rows > 0
+Manual test: upload malformed Excel file → verify error message clarity and log output
+```
+
+- **Summary of Response:**
+    - Generated a structured Claude prompt aligning with MVP and TDD principles
+    - Emphasized centralized error handling via middleware (e.g., FastAPI)
+    - Clearly defined separation between system-level errors and row-level validation failures
+    - Incorporated detailed acceptance criteria and test cases into implementation instructions
+- **Impact:**
+    - Standardized how errors are handled across the entire pipeline
+    - Prevented incorrect failure states for validation-only issues
+    - Improved system reliability and debuggability through structured logging and responses
+    - Provided clear implementation guidance for consistent backend behavior
+---
+
+### Prompt ID: P-048
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** System-level error handling implementation
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-4 System-Level Error Handling
+
+## Lead Data Engineer Implementation (MVP, Test-Driven, Production-Oriented)
+
+You are acting as a **Lead Data Engineer** implementing:
+
+> **T4-4 — System-Level Error Handling**
+
+for the Donor Bureau Excel ingestion pipeline.
+
+This is a **production-critical layer** that defines how the system behaves under failure.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Implement **centralized, deterministic error handling** that:
+
+* gracefully handles system-level failures
+* returns structured API responses
+* distinguishes clearly between:
+
+  * ✅ **Validation failures (row-level)** → HTTP 200
+  * ❌ **System failures (pipeline/runtime)** → HTTP 400 / 500
+
+---
+
+# ⚠️ CORE PRINCIPLE (NON-NEGOTIABLE)
+
+> **Row-level failures are NOT system failures.**
+
+| Scenario                   | Response                 |
+| -------------------------- | ------------------------ |
+| Invalid rows               | 200 (with rejected_rows) |
+| Bad file / broken pipeline | 400 or 500               |
+
+---
+
+# 🧠 ERROR CATEGORIES (SOURCE OF TRUTH)
+
+You MUST classify errors into:
+
+---
+
+## 1. Client Errors → HTTP 400
+
+These are **bad inputs**:
+
+* corrupted / unreadable `.xlsx`
+* invalid file type
+* malformed workbook structure
+* parser cannot process file
+
+---
+
+## 2. System Errors → HTTP 500
+
+These are **unexpected failures**:
+
+* unhandled exceptions
+* code bugs
+* runtime failures in pipeline stages
+
+---
+
+## 3. Validation Outcomes → HTTP 200
+
+These are **expected pipeline results**:
+
+* rows fail validation (T4-1 / T4-2)
+* rejected rows returned in output
+
+🚨 MUST NOT raise exceptions
+
+---
+
+# 🏗️ REQUIRED ARCHITECTURE
+
+## 1. Central Exception Type (REQUIRED)
+
+You already have `PipelineError`.
+
+Ensure it includes:
+
+class PipelineError(Exception):
+    def __init__(self, stage: str, error_type: str, message: str):
+        self.stage = stage
+        self.error_type = error_type
+        self.message = message
+
+---
+
+## 2. Exception Raising (Pipeline Layer)
+
+Each stage MUST raise:
+
+raise PipelineError(
+    stage="parse",
+    error_type="InvalidFile",
+    message="Unable to read Excel file"
+)
+
+🚨 NO raw exceptions should escape pipeline
+
+---
+
+## 3. FastAPI Exception Handler (REQUIRED)
+
+Implement centralized handler:
+
+@app.exception_handler(PipelineError)
+async def pipeline_error_handler(request, exc):
+
+---
+
+## 4. Generic Exception Handler (REQUIRED)
+
+Catch all unexpected failures:
+
+@app.exception_handler(Exception)
+
+---
+
+# 📤 API RESPONSE CONTRACT
+
+## 400 Response (Client Error)
+
+{
+  "error": {
+    "type": "InvalidFile",
+    "stage": "parse",
+    "message": "Unable to read Excel file"
+  }
+}
+
+---
+
+## 500 Response (System Error)
+
+{
+  "error": {
+    "type": "InternalServerError",
+    "stage": "unknown",
+    "message": "An unexpected error occurred"
+  }
+}
+
+🚨 DO NOT expose stack traces
+
+---
+
+## 200 Response (Validation Outcome)
+
+{
+  "total_rows": 100,
+  "clean_rows": 80,
+  "rejected_rows": 20,
+  "clean_file": "...",
+  "rejected_file": "..."
+}
+
+---
+
+# 🧪 TEST-DRIVEN REQUIREMENTS
+
+---
+
+## 1. Corrupted File Test (REQUIRED)
+
+* upload broken `.xlsx`
+* expect:
+
+  * HTTP 400
+  * structured error response
+  * correct stage = "parse"
+
+---
+
+## 2. Invalid File Type Test
+
+* upload `.csv`
+* expect:
+
+  * HTTP 400
+  * descriptive error
+
+---
+
+## 3. Mapping Config Failure Test
+
+* simulate missing or invalid `mapping.json`
+* expect:
+
+  * app fails at startup
+  * clear error message
+
+---
+
+## 4. Forced Parser Failure (Integration)
+
+* mock parser to raise PipelineError
+* expect:
+
+  * HTTP 400
+  * correct structure
+
+---
+
+## 5. Unexpected Exception Test
+
+* raise generic Exception inside pipeline
+* expect:
+
+  * HTTP 500
+  * safe message (no stack trace)
+
+---
+
+## 6. Validation-Only Failure Test
+
+* valid file, invalid rows
+* expect:
+
+  * HTTP 200
+  * rejected_rows > 0
+  * no exception raised
+
+---
+
+# 📊 LOGGING REQUIREMENTS (MVP)
+
+You MUST log:
+
+* file name (if available)
+* pipeline stage
+* error_type
+* message
+
+Example:
+
+[ERROR] file=donations.xlsx stage=parse type=InvalidFile msg="Unable to read Excel file"
+
+---
+
+# ⚙️ IMPLEMENTATION GUIDELINES
+
+DO:
+
+* use structured exceptions everywhere
+* wrap external library errors (openpyxl, pandas)
+* use FastAPI exception middleware
+* keep responses consistent
+
+---
+
+DO NOT:
+
+* leak stack traces
+* mix validation logic into error handling
+* return raw Python exceptions
+* silently swallow errors
+
+---
+
+# 🚨 CRITICAL FAILURE MODES
+
+Immediately FAIL if:
+
+* validation errors return 400/500
+* stack traces appear in API response
+* exceptions bypass handler
+* inconsistent response schemas
+* missing stage/error_type in response
+
+---
+
+# 🧠 DESIGN PRINCIPLE
+
+This layer ensures:
+
+> “Every failure is understandable, traceable, and correctly classified.”
+
+---
+
+# 📋 COMPLETION CHECKLIST
+
+Before finishing, confirm:
+
+* PipelineError used consistently
+* FastAPI handlers implemented
+* All error scenarios tested
+* Logging present and readable
+* No stack traces exposed
+* Validation vs system errors clearly separated
+
+---
+
+# 🧠 FINAL NOTE
+
+This is what makes your pipeline:
+
+* **debuggable**
+* **trustworthy**
+* **production-ready**
+
+Without this layer:
+
+> failures become invisible, confusing, and dangerous.
+
+---
+
+Begin implementation.
+
+```
+
+- **Summary of Response:**
+    - Defined centralized error handling using a custom PipelineError class across all pipeline stages
+    - Implemented FastAPI exception handlers for both controlled (400) and unexpected (500) errors
+    - Established strict API response schemas separating validation outcomes (200) from system failures
+    - Introduced comprehensive test coverage and logging requirements for all failure scenarios
+- **Impact:**
+    - Standardized how all failures are classified, surfaced, and logged across the pipeline
+    - Prevented misclassification of validation errors as system failures, preserving API contract integrity
+    - Improved debuggability and production readiness through structured responses and logging
+    - Created a clear foundation for reliable error handling in downstream features and future scaling
+---
+
+### Prompt ID: P-049
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** System-level error handling QA audit (T4-4)
+#### Prompt
+```
+# 🧠 Claude Code Prompt — T4-4 QA / Senior Test Engineer Review
+
+## System-Level Error Handling (Production Audit)
+
+You are acting as a **Senior QA Engineer + Lead Data Engineer reviewer**.
+
+Your task is to perform a **strict, production-grade audit** of:
+
+> **T4-4 — System-Level Error Handling**
+
+This is a **critical reliability layer** that determines how the system behaves under failure.
+
+---
+
+# 🎯 PRIMARY OBJECTIVE
+
+Verify that the system:
+
+* correctly classifies errors (400 vs 500 vs 200)
+* returns **consistent, structured API responses**
+* does NOT leak internal implementation details
+* cleanly separates **validation outcomes vs system failures**
+* logs all failures with actionable context
+
+---
+
+# ⚠️ PIPELINE CONTEXT
+
+upload → parse → map → normalize → validate → split → output
+
+At this layer:
+
+* failures are **non-row-level only**
+* row-level validation MUST NOT raise exceptions
+
+---
+
+# 🧠 CORE RULE (NON-NEGOTIABLE)
+
+> Validation failures → HTTP 200
+> System failures → HTTP 400 / 500
+
+🚨 If violated → FAIL immediately
+
+---
+
+# 🧪 CRITICAL VALIDATION CHECKS
+
+---
+
+## 1. Error Classification (HIGH PRIORITY)
+
+Verify correct mapping:
+
+| Scenario             | Expected        |
+| -------------------- | --------------- |
+| Corrupted `.xlsx`    | 400             |
+| Invalid file type    | 400             |
+| Parser failure       | 400             |
+| Missing mapping.json | startup failure |
+| Unexpected exception | 500             |
+| Validation failures  | 200             |
+
+🚨 FAIL if any misclassified
+
+---
+
+## 2. API Response Structure
+
+### 400 / 500 responses MUST follow:
+
+{
+  "error": {
+    "type": "...",
+    "stage": "...",
+    "message": "..."
+  }
+}
+
+Verify:
+
+* `type` present and meaningful
+* `stage` present and accurate
+* `message` clear and user-safe
+
+---
+
+## 3. NO STACK TRACE LEAKAGE (CRITICAL)
+
+Confirm:
+
+* no Python tracebacks in API responses
+* no internal file paths exposed
+* no raw exception strings returned
+
+🚨 Any leakage → FAIL
+
+---
+
+## 4. Validation vs System Separation
+
+Verify:
+
+* validation failures (bad rows):
+
+  * DO NOT raise exceptions
+  * return 200
+  * produce rejected rows
+
+* system failures:
+
+  * DO raise exceptions
+  * handled centrally
+
+---
+
+## 5. PipelineError Usage
+
+Confirm:
+
+* all expected failures use PipelineError
+* structure includes:
+
+  * stage
+  * error_type
+  * message
+
+Verify no raw exceptions escape pipeline layers.
+
+---
+
+## 6. FastAPI Exception Handlers
+
+Ensure:
+
+### a. PipelineError handler exists
+
+* returns 400
+* structured response
+* correct mapping of fields
+
+---
+
+### b. Generic Exception handler exists
+
+* returns 500
+* safe message
+* no internal details
+
+---
+
+## 7. Logging Audit (MVP)
+
+Verify logs include:
+
+* file name (if available)
+* stage
+* error_type
+* message
+
+Example:
+
+[ERROR] file=donations.xlsx stage=parse type=InvalidFile msg="Unable to read Excel file"
+
+🚨 Missing logging → HIGH RISK
+
+---
+
+# ⚠️ EDGE CASE TESTING
+
+Ensure tests cover:
+
+---
+
+## 1. Corrupted File
+
+* unreadable Excel
+* expect 400 + structured error
+
+---
+
+## 2. Invalid File Type
+
+* `.csv` upload
+* expect 400
+
+---
+
+## 3. Forced Parser Failure
+
+* simulate PipelineError
+* verify:
+
+  * 400 response
+  * correct stage
+
+---
+
+## 4. Unexpected Exception
+
+* force generic Exception
+* expect:
+
+  * 500
+  * safe message
+
+---
+
+## 5. Validation-Only Failure
+
+* bad rows
+* expect:
+
+  * 200
+  * rejected_rows > 0
+  * NO exception
+
+---
+
+## 6. Missing Config (Startup)
+
+* mapping.json missing/invalid
+* expect:
+
+  * app fails to start
+  * explicit error
+
+---
+
+# 🚨 COMMON FAILURE MODES
+
+Flag immediately if present:
+
+* validation errors returning 400/500
+* raw exceptions leaking
+* inconsistent response schema
+* missing stage in error
+* missing error_type
+* logging absent or incomplete
+* exception bypassing handler
+* mixing validation logic into error handling
+
+---
+
+# 📊 INTEGRATION BEHAVIOR
+
+Verify:
+
+* upload endpoint properly surfaces pipeline errors
+* pipeline errors propagate cleanly
+* no silent failures
+* consistent responses across all endpoints
+
+---
+
+# 🧠 DESIGN VALIDATION
+
+Confirm this layer enforces:
+
+> “All failures are visible, classified, and actionable.”
+
+NOT:
+
+* hidden
+* ambiguous
+* inconsistent
+
+---
+
+# 🚫 FAIL CONDITIONS
+
+Immediately FAIL if:
+
+* stack trace appears in API response
+* incorrect HTTP status codes
+* validation failures treated as system errors
+* missing structured error response
+* unhandled exceptions crash server
+
+---
+
+# 📋 OUTPUT FORMAT
+
+Return:
+
+## 1. Executive Summary
+
+PASS / FAIL / PASS WITH RISKS
+
+## 2. Critical Issues
+
+(break correctness or safety)
+
+## 3. Reliability Risks
+
+(logging gaps, edge-case failures)
+
+## 4. Test Coverage Gaps
+
+## 5. Edge Cases Missed
+
+## 6. Final Verdict
+
+READY FOR T5 OR BLOCKED
+
+---
+
+# 🧠 FINAL INSTRUCTION
+
+This is NOT a style review.
+
+This is a **production reliability audit**.
+
+If this layer fails:
+
+> debugging becomes impossible and user trust collapses.
+
+Be strict.
+Be skeptical.
+Think like production.
+
+---
+
+Begin review.
+
+```
+
+- **Summary of Response:**
+    - Defines a strict QA audit framework for system-level error handling across the pipeline
+    - Enforces clear separation between validation errors (200) and system failures (400/500)
+    - Establishes standardized API error response schema and PipelineError usage
+    - Introduces comprehensive edge case testing and logging requirements for production reliability
+- **Impact:**
+    - Formalizes error handling as a critical production reliability layer
+    - Sets non-negotiable standards for API consistency, safety, and observability
+    - Ensures downstream debugging and user trust through structured failure handling
+    - Acts as a gatekeeper before progressing to T5, preventing fragile system behavior
+---
