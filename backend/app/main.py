@@ -16,6 +16,7 @@ import io
 import logging
 import os
 import re
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, Request, UploadFile
@@ -26,6 +27,7 @@ from app.output.writer import write_clean_csv, write_rejected_csv
 from app.processing.parser import parse_workbook
 from app.processing.pipeline import PipelineError, run_pipeline
 from app.utils.file_naming import generate_output_filenames
+from app.logging_utils.metrics import log_pipeline_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +213,9 @@ async def upload_file(file: UploadFile = File(...)):
 
     logger.info("File received — filename=%s size=%d bytes", filename, len(content))
 
+    # --- Start timing (covers parse + pipeline + output writing) ---
+    _start = time.perf_counter()
+
     # --- Parse workbook ---
     try:
         source = io.BytesIO(content)
@@ -227,6 +232,9 @@ async def upload_file(file: UploadFile = File(...)):
         ) from e
 
     # --- Run pipeline ---
+    # Note: if run_pipeline() raises PipelineError, the exception handler
+    # returns before reaching log_pipeline_metrics(). This is intentional —
+    # there are no valid row counts to log when the pipeline fails.
     result = run_pipeline(parsed_df, mapping_config)
 
     # --- Write output files ---
@@ -240,12 +248,22 @@ async def upload_file(file: UploadFile = File(...)):
     write_rejected_csv(result["rejected_df"], rejected_path)
 
     summary = result["summary"]
+    _processing_time_ms = int((time.perf_counter() - _start) * 1000)
+
     logger.info(
         "Pipeline complete — file=%s total=%d clean=%d rejected=%d",
         filename,
         summary["total_rows"],
         summary["clean_rows"],
         summary["rejected_rows"],
+    )
+
+    log_pipeline_metrics(
+        file_name=filename,
+        total_rows=summary["total_rows"],
+        clean_rows=summary["clean_rows"],
+        rejected_rows=summary["rejected_rows"],
+        processing_time_ms=_processing_time_ms,
     )
 
     return JSONResponse(

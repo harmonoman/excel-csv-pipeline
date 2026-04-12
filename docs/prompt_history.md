@@ -10030,3 +10030,379 @@ This review should be strict, adversarial, and production-minded.
     - Establishes a hard production-quality gate for the first user-facing API layer in the Donor Bureau system
     - Ensures security, correctness, and deterministic behavior are enforced before merge
     - Standardizes QA expectations for integration testing and FastAPI contract compliance
+---
+
+### Prompt ID: P-066
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for pipeline logging instrumentation task
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T5-5 - Basic logging:
+
+Description
+Implement lightweight logging within the processing pipeline to capture key execution metrics. Log file name, total rows processed, clean row count, rejected row count, and total processing time. Logs should be emitted to the console for MVP simplicity.
+
+Acceptance criteria
+Logs include file name for each upload
+Logs include total_rows, clean_rows, rejected_rows
+Processing time (in seconds or ms) is logged
+Log output is readable and structured (consistent format per run)
+Assumptions
+Console logging is sufficient for MVP (no external logging system required)
+Processing is synchronous, so total runtime can be measured within request lifecycle
+Test plan
+Unit test: mock logger and verify expected log fields are emitted
+Integration test: run full pipeline and assert logs contain row counts and processing time
+Manual test: upload file and visually confirm log output format and values
+```
+
+- **Summary of Response:**
+    
+    - Generated a structured implementation prompt for Claude focused on adding console-based logging to a data processing pipeline
+    
+    - Emphasized capture of key execution metrics including file name, row counts, and processing time
+    
+    - Reinforced MVP constraints (no external logging system, synchronous processing)
+    
+    - Included explicit test expectations across unit, integration, and manual validation layers
+- **Impact:**
+    
+    - Defined a clear logging instrumentation requirement for the pipeline MVP, ensuring observability of ingestion metrics while maintaining simplicity. Established a test-driven validation approach for verifying logging correctness and consistency across execution runs.
+---
+
+### Prompt ID: P-067
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Implement MVP observability logging layer for donation ingestion pipeline
+#### Prompt
+```
+🧠 Claude Code Prompt — T5-5 Implementation (Basic Logging Layer)
+
+You are acting as a Lead Data Engineer implementing observability for the Donor Bureau pipeline.
+
+Your task is to implement:
+
+T5-5 — Basic Logging
+
+This is a cross-cutting observability layer that spans:
+
+upload endpoint (T5-3)
+pipeline execution (T1–T4)
+output generation (T5-1, T5-2)
+
+It is not business logic — it is instrumentation only.
+
+🎯 Objective
+
+Implement lightweight, structured console logging that captures key execution metrics for every upload request.
+
+This is the MVP observability layer for the system.
+
+⚠️ Critical Constraints (DO NOT VIOLATE)
+Logging must NOT affect:
+pipeline behavior
+data transformation
+validation logic
+Must be:
+lightweight
+synchronous
+console-only (no external systems)
+Must NOT introduce side effects
+📦 Logging Requirements
+1. Required Metrics (MUST LOG EVERY RUN)
+
+For every /upload request, log:
+
+Input file name
+total_rows
+clean_rows
+rejected_rows
+processing_time_ms (or seconds)
+2. Log Format (STRICT REQUIREMENT)
+
+Logs must be:
+
+consistent across runs
+human-readable
+structured (key-value style preferred)
+Example format:
+[PIPELINE_METRICS] file=donations.xlsx total_rows=120 clean_rows=100 rejected_rows=20 processing_time_ms=342
+3. Placement Rules
+
+Logging should occur:
+
+AFTER pipeline execution completes
+BEFORE API response is returned
+Inside FastAPI upload orchestration layer OR dedicated logging utility
+4. Timing Requirements
+
+You MUST measure:
+
+full end-to-end pipeline execution time
+includes:
+parsing
+mapping
+validation
+writing outputs
+Constraint:
+Use synchronous timing only (e.g., time.perf_counter())
+5. Implementation Strategy
+Create one of the following:
+
+Preferred:
+
+app/logging/logger.py
+
+OR inline utility inside pipeline orchestration layer if minimal.
+
+Logging function example shape:
+def log_pipeline_metrics(file_name, total_rows, clean_rows, rejected_rows, start_time, end_time):
+🧪 Test-Driven Development (MANDATORY)
+1. Unit Test — Logger Output Capture
+Mock logger (or capsys)
+Run logging function
+Assert log contains:
+file name
+total_rows
+clean_rows
+rejected_rows
+processing time
+2. Integration Test — Full Pipeline Logging
+Upload fixture via /upload
+Capture stdout
+Assert log line exists and contains:
+correct row counts
+processing time > 0
+correct file name
+3. Manual Verification Test
+Run full upload manually
+Confirm:
+log appears in console
+format is readable and consistent
+values match API response
+🧠 Design Requirements
+Separation of Concerns
+
+Ensure:
+
+Logging does NOT live inside:
+validators
+transformers
+writers
+
+It should be:
+
+triggered by orchestration layer OR pipeline wrapper
+Determinism
+
+Logging must:
+
+never change pipeline output
+never affect performance meaningfully
+always reflect actual computed values
+MVP Simplicity Rule
+No:
+ELK stack
+external log collectors
+async logging systems
+structured logging frameworks unless trivial
+Yes:
+Python standard logging OR print-based structured logs
+🚨 Acceptance Criteria Checklist
+
+Before completion, ensure:
+
+ Logs include file name
+ Logs include total_rows, clean_rows, rejected_rows
+ Logs include processing time
+ Output format is consistent
+ Logs are emitted per upload
+ No pipeline behavior is affected
+ Unit + integration tests exist
+🧪 Edge Cases to Consider
+Empty file upload
+All rows rejected
+Very large file (10k+ rows)
+Pipeline exception (ensure logging does not break failure flow)
+🚫 Do NOT
+Do NOT introduce external logging services
+Do NOT modify pipeline logic
+Do NOT change API response structure
+Do NOT add async logging
+Do NOT over-engineer observability
+🧠 Final Instruction
+
+This is a minimal but production-relevant observability layer.
+
+Your goal is:
+
+“We should be able to understand what happened in any upload from a single log line.”
+
+Keep it simple, consistent, and testable.
+```
+
+- **Summary of Response:**
+    - Implemented a lightweight console logging utility for pipeline metrics using synchronous timing
+    - Added structured log output capturing file name, row counts, and processing duration
+    - Integrated logging at orchestration layer without modifying validation or transformation logic
+    - Included unit and integration tests validating stdout log capture and correctness of metrics
+- **Impact:**
+    - Established MVP observability layer enabling end-to-end upload traceability
+    - Improved debuggability of pipeline executions without introducing external dependencies
+    - Created a foundation for future production-grade monitoring and instrumentation
+---
+
+### Prompt ID: P-068
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA review prompt for pipeline logging implementation
+#### Prompt
+```
+🧪 Claude Code Review Prompt — T5-5 Basic Logging (Senior QA / Lead Tester)
+
+You are acting as a Senior QA Engineer + Lead Data Engineer reviewer for the Donor Bureau Excel Pipeline.
+
+Your task is to perform a strict production-level code review of the recently implemented:
+
+T5-5 — Basic Logging (Pipeline Observability Layer)
+
+This logging layer is part of a test-driven MVP data pipeline that processes Excel workbooks into clean/rejected CSV outputs.
+
+🧠 Context You Must Consider
+
+You are reviewing this within a fully implemented pipeline that already includes:
+
+Pipeline Stages (must not be broken by logging)
+parse → map → normalize → validate → split → enforce schema → output
+Existing Output Contract
+
+Each upload produces:
+
+clean_df (schema-enforced, valid records only)
+rejected_df (original data + rejection_reason)
+summary:
+total_rows
+clean_rows
+rejected_rows
+T5-1 → T5-4 Already Implemented
+clean CSV writer
+rejected CSV writer
+deterministic file naming
+download endpoints (/download/{filename})
+Critical Constraint
+
+Logging MUST be:
+
+non-intrusive
+non-breaking
+non-mutating to pipeline outputs
+non-reliant on external systems (MVP = console only)
+🎯 Your Task
+
+Perform a full QA + architecture review of the logging implementation and determine:
+
+1. Correctness
+Are all required log fields present?
+filename
+total_rows
+clean_rows
+rejected_rows
+processing time
+Are values accurate and derived from the correct pipeline stage outputs?
+2. Non-Intrusiveness (Critical)
+Does logging mutate or leak into:
+clean_df
+rejected_df
+summary
+Does it interfere with determinism of output files?
+3. Placement in Pipeline
+Is logging executed:
+at correct lifecycle point (end of pipeline run OR orchestrator level)
+NOT inside transformation logic (parser/validator/normalizer)
+4. Performance Impact
+Any unnecessary:
+dataframe copies
+row-level logging inside loops
+repeated string formatting per row
+
+Flag anything that violates MVP simplicity.
+
+5. Logging Format Quality
+Is output:
+structured and consistent per run
+readable in console
+useful for debugging pipeline runs
+
+Recommend improvements if logs are noisy or inconsistent.
+
+6. Test Coverage Review
+
+Verify test coverage includes:
+
+Required tests
+mock logger assertion (unit test)
+full pipeline run with log inspection (integration test)
+timing validation (processing duration captured)
+
+Flag missing or weak assertions.
+
+🚨 Red Line Rules (Must Fail Review If Broken)
+
+Fail the implementation if ANY of the following occur:
+
+Logging alters DataFrames or pipeline outputs
+Logging occurs inside row-level loops in validators or transformers
+Missing any required metric field
+No clear timing mechanism for full pipeline execution
+Logging tightly coupled to business logic instead of orchestrator layer
+🧪 MVP Philosophy Reminder
+
+This is a lightweight MVP system, not enterprise observability.
+
+✔ Acceptable:
+
+print/log to console
+simple structured string logs
+basic timing via time.perf_counter()
+
+❌ Not acceptable:
+
+ELK stack integration
+external logging services
+async log pipelines
+per-row logging noise
+📦 Output Format
+
+Return your review in this structure:
+
+1. Executive Summary
+
+(pass / pass with minor fixes / fail)
+
+2. Critical Issues (blocking)
+list any blocking issues
+3. Non-Critical Issues
+improvements or refactors
+4. Test Coverage Gaps
+missing or weak tests
+5. Architecture Feedback
+placement, separation of concerns, MVP alignment
+6. Final Recommendation
+ready / needs fixes / rollback required
+
+If anything is ambiguous, assume strict MVP correctness and testability over convenience.
+```
+
+- **Summary of Response:**
+    - Defined strict QA code review framework for pipeline logging layer (T5-5)
+    - Enforced non-intrusive MVP logging constraints and placement rules
+    - Specified required metrics, performance checks, and test coverage expectations
+    - Introduced red-line failure conditions for pipeline safety and determinism
+- **Impact:**
+    - Established a production-grade review gate for observability features in the ETL pipeline
+    - Ensured logging cannot interfere with core data transformation or outputs
+    - Standardized QA expectations for future pipeline instrumentation work
+---
