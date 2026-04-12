@@ -197,3 +197,30 @@ def test_validation_failure_does_not_raise_exception():
 
     response = client.post("/upload", files=[make_xlsx_upload(buf.getvalue())])
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Edge cases identified in E4 checkpoint review
+# ---------------------------------------------------------------------------
+
+def test_empty_workbook_returns_200_with_zero_rows():
+    """
+    Valid xlsx with no parseable sheets (e.g. Instructions-only workbook)
+    returns HTTP 200 with total_rows: 0. This is correct — no pipeline failure
+    occurred, the file was simply empty of usable data.
+    """
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Instructions"
+    ws.append(["This sheet contains setup instructions"])
+    ws.append(["Do not delete"])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    response = client.post("/upload", files=[make_xlsx_upload(buf.getvalue())])
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["total_rows"] == 0
+    assert body["summary"]["clean_rows"] == 0
+    assert body["summary"]["rejected_rows"] == 0
