@@ -11297,7 +11297,7 @@ Attempt submit with no file selected — confirm button remains disabled.
 ### Prompt ID: P-076
 - **Author:** ChatGPT
 - **Target:** Claude
-- **Purpose:** 
+- **Purpose:** React drag-and-drop XLSX upload component (MVP frontend ingestion surface)
 #### Prompt
 ```
 🧠 Claude Code Prompt — T6-1 Drag & Drop Upload Component
@@ -11443,14 +11443,20 @@ Build the smallest, cleanest, most deterministic component possible.
 ```
 
 - **Summary of Response:**
-
+    - Designed and implemented a React UploadDropzone component using react-dropzone
+    - Added strict client-side validation based on .xlsx file extension (case-insensitive)
+    - Implemented three UI states: empty, invalid file error, and valid file selected with metadata display
+    - Wired a disabled/enabled submit button that logs the file on click (no API integration)
 - **Impact:**
+    - Established first user-facing ingestion interface for the Donor Bureau pipeline
+    - Enforced strict MVP boundary between frontend selection layer and backend processing
+    - Set foundation for subsequent API integration step (T6-2) without premature coupling
 ---
 
 ### Prompt ID: P-077
 - **Author:** ChatGPT
 - **Target:** Claude
-- **Purpose:** 
+- **Purpose:** Senior QA review specification for drag-and-drop upload component
 #### Prompt
 ```
 🧠 Claude Code Prompt — T6-1 QA / Senior Test Engineer Review
@@ -11589,5 +11595,12 @@ If it accepts bad input, everything downstream is compromised.
 ```
 
 - **Summary of Response:**
-
+    - Produced a strict QA review specification for a drag-and-drop upload component in a data ingestion pipeline
+    - Defined detailed acceptance criteria covering file validation, UI behavior, state management, and submission rules
+    - Established a structured review framework for evaluating correctness, edge cases, MVP discipline, and integration readiness
+    - Created a production-grade checklist intended to enforce rigorous frontend + pipeline reliability standards
 - **Impact:**
+    - Standardized how frontend ingestion components are reviewed before backend integration
+    - Introduced strict validation and edge-case expectations to prevent bad data from entering the pipeline
+    - Set up a reusable QA evaluation template for future UI/data pipeline components
+---
