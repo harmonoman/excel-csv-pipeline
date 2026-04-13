@@ -1,8 +1,12 @@
-// App.jsx — minimal shell for T6-0 scaffold.
-// T6-1 drops UploadDropzone into this main element.
-// T6-2 adds results display alongside it.
+import UploadDropzone from "./components/UploadDropzone";
+
 export default function App() {
   return (
-    <main style={{ maxWidth: 640, margin: "3rem auto", padding: "0 1.5rem" }} />
+    <main style={{ maxWidth: 560, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <h1 style={{ fontSize: "18px", fontWeight: "500", marginBottom: "1.5rem" }}>
+        Donor Bureau — Upload
+      </h1>
+      <UploadDropzone />
+    </main>
   );
 }

@@ -11300,175 +11300,294 @@ Attempt submit with no file selected — confirm button remains disabled.
 - **Purpose:** 
 #### Prompt
 ```
-🎯 Claude Implementation Prompt — T6-1 Drag & Drop Upload (MVP Frontend)
+🧠 Claude Code Prompt — T6-1 Drag & Drop Upload Component
+You are acting as a Lead Frontend Engineer working under a Senior Data Engineer + QA-driven MVP process.
+Your task is to implement:
+T6-1 — Drag & Drop Upload Component
+This is the first user-facing surface of the Donor Bureau pipeline. It must be minimal, deterministic, and strictly scoped to MVP.
+🎯 Context
+The backend pipeline is complete through E5 (output generation).
+* POST /upload exists and processes .xlsx
+* Returns:
 
-You are acting as a Lead Data Engineer with frontend experience implementing a minimal, production-ready React component for the Donor Bureau Pipeline.
-
-Your goal is to deliver:
-
-T6-1 — Drag-and-Drop Upload Component (MVP UI Layer)
-
-This is the first frontend surface of a data pipeline that converts Excel workbooks into clean CSV outputs.
-
-🧠 Context You Must Respect
-
-This is a backend-first, test-driven MVP system.
-
-The frontend is:
-
-intentionally lightweight
-not responsible for business logic
-not responsible for validation beyond basic UX safeguards
-
-The backend already enforces:
-
-file validation
-schema validation
-data correctness
-
-👉 The frontend should ONLY:
-
-prevent obvious bad inputs
-improve user experience
-pass the file to /upload
-🧩 Scope of This Ticket
-
-You are building a single React component:
-
-Component Responsibility
-Accept a file via drag-and-drop OR click-to-select
-Validate .xlsx extension client-side
-Display file name + size
-Enable submit only when valid file selected
-🛠️ Technical Requirements
-Stack
-React (functional components)
-Use React Dropzone
-No UI frameworks required (keep styling minimal)
-🎯 Functional Requirements
-1. Drag-and-Drop Zone
-User can:
-drag file into drop area
-click to open file picker
-Only accept .xlsx files
-2. Client-Side Validation (Lightweight)
-If file is NOT .xlsx:
-reject immediately
-
-display clear error message:
-
-"Only .xlsx files are supported"
-
-⚠️ Do NOT:
-
-inspect file contents
-attempt parsing
-duplicate backend validation logic
-3. File Display
-
-Once valid file is selected:
-
-Show:
-file name
-file size (KB or MB, human readable)
-
-Example:
-
-File: donations_april.xlsx (1.2 MB)
-4. Submit Button Behavior
-Disabled state:
-no file selected
-invalid file selected
-Enabled state:
-valid .xlsx file selected
-5. State Management
-
-Component should track:
-
-selected file
-validation error (if any)
-
-Keep state minimal and local.
-
-🧪 MVP Testing Expectations
-
-This ticket is manual-test driven (no frontend test framework required yet).
-
-You must ensure:
-
-Scenario 1 — Valid File
-Drag .xlsx file
-✅ file name + size displayed
-✅ submit button enabled
-Scenario 2 — Invalid File
-Drag .csv or .txt
-❌ error message displayed
-❌ submit button remains disabled
-Scenario 3 — No File
-Attempt submit with no file
-❌ submit disabled
-🧱 Implementation Constraints
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "/download/{filename}",
+  "rejected_file": "/download/{filename}"
+}
+Frontend scaffold (T6-0) is complete:
+*  React + Vite 
+*  No TypeScript 
+*  No UI framework 
+* react-dropzone installed 
+*  Minimal App.jsx shell exists 
+⚠️ MVP Constraints (STRICT)
+You MUST adhere to these:
 DO:
-Keep component small and focused
-Use clean state handling
-Keep logic readable and obvious
+*  Use react-dropzone 
+*  Use plain React (JS only) 
+*  Use minimal inline styles or a small CSS file 
+*  Keep component fully self-contained 
+*  Focus ONLY on file selection + validation + display 
 DO NOT:
-call backend yet (T6-2 handles that)
-implement loading states
-implement results display
-introduce global state management
-over-engineer styling
-🧩 Suggested Component Structure
+*  Add API calls (belongs to T6-2) 
+*  Add global state management 
+*  Add UI frameworks (Tailwind, MUI, etc.) 
+*  Add test frameworks 
+*  Add routing 
+*  Add over-engineered abstractions 
+🧩 Implementation Requirements
+Component
+Create:
 
-You may implement something like:
+frontend/src/components/UploadDropzone.jsx
+Behavior
+1. Drag & Drop + Click Upload
+Use react-dropzone to support:
+*  Drag & drop file 
+*  Click to select file 
+2. File Validation (Client-side)
+Accept ONLY:
+* .xlsx files 
+Reject:
+* .csv 
+* .txt 
+*  any other extension 
+Validation rules:
+*  Check file extension (.xlsx) 
+*  Case-insensitive 
+3. UI States
+You must support these states:
+A. No file selected
+*  Show dropzone area 
+*  Submit button is disabled 
+B. Invalid file selected
+*  Show error message: 
+   * "Only .xlsx files are supported" 
+*  Clear selected file 
+*  Submit remains disabled 
+C. Valid file selected
+*  Display: 
+   *  File name 
+   *  File size (KB or MB, formatted) 
+*  Enable Submit button 
+4. Submit Button
+*  Label: "Upload" 
+*  Disabled until valid .xlsx is selected 
+*  On click: 
+   *  For now → console.log(file) 
+   *  (NO API call yet — T6-2) 
+UI Expectations (Minimal)
+*  Centered container (reuse App.jsx layout) 
+*  Simple dashed border dropzone 
+*  Basic hover/active styling 
+*  Clean, readable layout 
+No design system. No polish beyond usability.
+App Integration
+Update:
 
-UploadDropzone.jsx
-  - useDropzone()
-  - local state: file, error
-  - render:
-      drop area
-      file info (if exists)
-      error message (if exists)
-      submit button (disabled/enabled)
-🚨 Red Line Rules
+frontend/src/App.jsx
+To render:
 
-Fail the implementation if:
+<UploadDropzone />
+📁 Expected File Structure
 
-accepts non-.xlsx files
-submit button enabled without valid file
-file info not shown after selection
-validation logic is duplicated from backend
-component tries to process file contents
+frontend/src/
+  App.jsx
+  main.jsx
+  components/
+    UploadDropzone.jsx
+Optional:
+
+frontend/src/styles.css
+🧪 Manual Test Plan (Must Pass)
+You MUST verify:
+✅ Valid file
+*  Drag .xlsx 
+*  File name + size appear 
+*  Submit button enables 
+❌ Invalid file
+*  Drag .csv 
+*  Error message appears 
+*  No file retained 
+*  Submit disabled 
+❌ No file
+*  Click submit 
+*  Button remains disabled 
+⚠️ QA / Engineering Standards
+*  No unused state 
+*  No console spam except submit action 
+*  Clean, readable component 
+*  No unnecessary abstractions 
+*  No coupling to backend yet 
+🚫 Common Failure Modes (Avoid These)
+*  Accepting files based on MIME only (must check extension) 
+*  Keeping invalid file in state 
+*  Enabling submit prematurely 
+*  Overcomplicating styling 
+*  Adding API logic early 
 📦 Deliverables
-React component (clean, readable)
-Minimal styling (clear UX, not pretty UI)
-Inline comments explaining:
-validation decisions
-why logic is intentionally minimal
-🧠 MVP Philosophy Reminder
-
-This is NOT a polished product UI.
-
-This is:
-
-a thin UX layer over a backend data pipeline
-
-Optimize for:
-
-clarity
-correctness
-simplicity
-✅ Definition of Done
-All acceptance criteria satisfied
-Manual test scenarios pass
-Component integrates cleanly into /frontend workspace
-Ready for T6-2 (API integration + results display)
-
-If anything is ambiguous:
-➡️ choose simplest implementation that satisfies acceptance criteria
+1. UploadDropzone.jsx 
+2.  Updated App.jsx 
+3.  (Optional) minimal CSS file 
+4.  Brief explanation of: 
+   *  State management approach 
+   *  Validation logic 
+   *  How it satisfies acceptance criteria 
+🧠 Guiding Principle
+This is not a UI project.
+This is a thin control surface for a data pipeline.
+Build the smallest, cleanest, most deterministic component possible.
 ```
 
 - **Summary of Response:**
 
 - **Impact:**
 ---
+
+### Prompt ID: P-077
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** 
+#### Prompt
+```
+🧠 Claude Code Prompt — T6-1 QA / Senior Test Engineer Review
+
+You are acting as a Senior QA Engineer + Frontend Test Lead + Data Pipeline Reviewer.
+
+Your task is to perform a strict, production-style code review of the implementation for:
+
+T6-1 — Drag & Drop Upload Component
+
+🎯 Review Objectives
+
+This is the first user-facing component in a data pipeline system.
+
+Your job is to evaluate:
+
+Correctness (does it meet the spec exactly?)
+Robustness (does it break under edge cases?)
+MVP discipline (is anything overbuilt?)
+UX clarity (does the user understand what’s happening?)
+Readiness for T6-2 (API integration)
+📦 Scope of Review
+
+You are reviewing:
+
+UploadDropzone.jsx
+App.jsx integration
+Any CSS files (if present)
+📋 Acceptance Criteria (Must Be Enforced Strictly)
+File Validation
+Only .xlsx files are accepted
+Validation is case-insensitive
+.csv and all other types are rejected
+UI Behavior
+Invalid file:
+Error message shown
+File NOT retained in state
+Valid file:
+File name displayed
+File size displayed (human-readable)
+No file:
+Submit button disabled
+Submit Behavior
+Button disabled until valid file selected
+Clicking submit:
+Does NOT call API
+Only logs file (for now)
+🔍 What You Must Evaluate
+1. Validation Logic (CRITICAL)
+Is validation based on file extension, not just MIME?
+Is .XLSX (uppercase) handled correctly?
+Are edge cases handled:
+File with no extension
+File named file.xlsx.exe
+Is invalid file cleared from state?
+2. State Management
+Is state minimal and clean?
+Any unnecessary state variables?
+Is error state properly reset when a valid file is selected?
+Any stale state bugs?
+3. Dropzone Implementation
+Is react-dropzone used correctly?
+Are accepted file types configured properly?
+Any reliance on browser MIME that could fail?
+4. UI / UX Behavior
+Is the UI state clearly communicated?
+Is the error message visible and unambiguous?
+Is the submit button behavior correct in all states?
+Any confusing transitions?
+5. Edge Cases
+
+Explicitly test mentally:
+
+Drag invalid → then valid
+Drag valid → then invalid
+Rapid file changes
+Same file uploaded twice
+Empty file (0 bytes)
+6. Code Quality
+Any overengineering?
+Any unnecessary abstractions?
+Is the component readable and maintainable?
+Any console logs left behind (besides submit)?
+7. MVP Discipline
+Did the engineer:
+❌ Add API calls prematurely?
+❌ Add styling frameworks?
+❌ Add unnecessary complexity?
+Or:
+✅ Keep it minimal and scoped?
+8. Integration Readiness (T6-2)
+Can this component easily:
+Send file via FormData?
+Is the file object preserved correctly?
+Any blockers for API integration?
+🧪 Required Output Format
+
+You MUST respond with:
+
+1. 🧠 Executive Summary
+✅ READY
+⚠️ READY WITH FIXES
+❌ NOT READY
+2. 🔴 Critical Issues (Must Fix Before Merge)
+Bugs
+Spec violations
+Broken edge cases
+3. 🟡 Medium Risks
+UX confusion
+Fragile logic
+Future integration risks
+4. 🟢 Minor Issues
+Cleanup
+Readability
+Small improvements
+5. 🧪 Test Coverage Gaps
+What is NOT testable manually but risky?
+6. 🔧 Recommended Fixes
+
+Concrete, actionable changes (not vague advice)
+
+7. 🧠 Final Verdict
+
+Clear go/no-go decision for merge
+
+⚠️ Review Standards
+Be strict
+Be specific
+Do NOT assume correctness
+Treat this like production code entering a real system
+🧠 Guiding Principle
+
+This component is the entry point into a data validation pipeline.
+
+If it accepts bad input, everything downstream is compromised.
+```
+
+- **Summary of Response:**
+
+- **Impact:**
