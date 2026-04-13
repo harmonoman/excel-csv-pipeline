@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
+import UploadResult from "./UploadResult";
 
 // Extension check only — intentionally minimal.
 // Backend re-validates file type and contents.
@@ -14,76 +15,142 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function UploadDropzone() {
-  // Three possible states: null (no file), File object (valid), "error" (invalid)
-  const [file, setFile] = useState(null);
-  const [error, setError] = useState("");
+// State machine:
+//   idle     → file selected or rejected
+//   loading  → POST /upload in flight, UI locked
+//   success  → API responded with result, show UploadResult
+//   error    → API call failed, show error, allow retry
 
-    function handleFile(incoming) {
+export default function UploadDropzone() {
+  const [file, setFile] = useState(null);
+  const [validationError, setValidationError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [apiError, setApiError] = useState("");
+
+  function handleFile(incoming) {
+    // Clear any previous API error when user selects a new file
+    setApiError("");
     if (!isXlsx(incoming)) {
-        setFile(null);
-        setError("Only .xlsx files are supported.");
-        return;
+      setFile(null);
+      setValidationError("Only .xlsx files are supported.");
+      return;
     }
     if (incoming.size === 0) {
-        setFile(null);
-        setError("This file is empty. Please select a valid .xlsx file.");
-        return;
+      setFile(null);
+      setValidationError("This file is empty. Please select a valid .xlsx file.");
+      return;
     }
     setFile(incoming);
-    setError("");
-    }
+    setValidationError("");
+  }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
     },
     multiple: false,
+    // Disable dropzone while request is in flight — prevents mid-upload file swaps
+    disabled: loading,
     onDragEnter() {
-      if (error) setError("");
+      if (validationError) setValidationError("");
     },
     onDrop(accepted, rejected) {
-      if (accepted.length > 0) {
-        handleFile(accepted[0]);
-      }
+      if (accepted.length > 0) handleFile(accepted[0]);
       if (rejected.length > 0) {
         setFile(null);
-        setError("Only .xlsx files are supported.");
+        setValidationError("Only .xlsx files are supported.");
       }
     },
   });
 
-  function handleSubmit() {
-    if (!file) return;
-    // T6-2 replaces this with POST /upload
-    console.log("[T6-1] file ready for upload:", file.name, formatSize(file.size));
+  async function handleSubmit() {
+    if (!file || loading) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setLoading(true);
+    setApiError("");
+    setResult(null);
+
+    try {
+      const response = await fetch("/upload", {
+        method: "POST",
+        body: formData,
+        // Do NOT set Content-Type header — browser sets it automatically
+        // with the correct multipart boundary when using FormData.
+      });
+
+      if (!response.ok) {
+        // Check response.ok before parsing JSON — error responses may not be JSON
+        // (e.g. a 502 from nginx returns HTML). Inner try/catch handles that safely.
+        let message = "Upload failed. Please try again.";
+        try {
+          const data = await response.json();
+          message = data?.error?.message || message;
+        } catch {}
+        setApiError(message);
+        return;
+      }
+
+      const data = await response.json();
+      setResult(data);
+      setFile(null);
+
+    } catch (err) {
+      // Network failure or JSON parse error on success response
+      setApiError("Upload failed. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleReset() {
+    setFile(null);
+    setValidationError("");
+    setApiError("");
+    setResult(null);
+    setLoading(false);
   }
 
   function handleClear(e) {
     e.stopPropagation();
     setFile(null);
-    setError("");
+    setValidationError("");
   }
+
+  // Success state — replace the dropzone with results
+  if (result) {
+    return <UploadResult result={result} onReset={handleReset} />;
+  }
+
+  const submitDisabled = !file || loading;
 
   return (
     <div style={styles.wrap}>
 
-      {/* Drop zone */}
+      {/* Drop zone — locked during upload */}
       <div
         {...getRootProps()}
         style={{
           ...styles.zone,
           ...(isDragActive ? styles.zoneActive : {}),
+          ...(loading ? styles.zoneLocked : {}),
         }}
       >
         <input {...getInputProps()} />
         <p style={styles.zoneLabel}>
-          {isDragActive ? "Drop it here" : "Drag & drop an .xlsx file, or click to select"}
+          {loading
+            ? "Processing..."
+            : isDragActive
+            ? "Drop it here"
+            : "Drag & drop an .xlsx file, or click to select"}
         </p>
       </div>
 
       {/* Valid file info */}
-      {file && (
+      {file && !loading && (
         <div style={styles.fileRow}>
           <span style={styles.fileName}>{file.name}</span>
           <span style={styles.fileSize}>{formatSize(file.size)}</span>
@@ -93,16 +160,19 @@ export default function UploadDropzone() {
         </div>
       )}
 
-      {/* Validation error */}
-      {error && <p style={styles.error}>{error}</p>}
+      {/* Client-side validation error */}
+      {validationError && <p style={styles.error}>{validationError}</p>}
 
-      {/* Submit — disabled until valid file selected */}
+      {/* API error */}
+      {apiError && <p style={styles.error}>{apiError}</p>}
+
+      {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!file}
-        style={{ ...styles.submit, ...(!file ? styles.submitDisabled : {}) }}
+        disabled={submitDisabled}
+        style={{ ...styles.submit, ...(submitDisabled ? styles.submitDisabled : {}) }}
       >
-        Upload
+        {loading ? "Uploading..." : "Upload"}
       </button>
 
     </div>
@@ -127,6 +197,10 @@ const styles = {
   zoneActive: {
     borderColor: "#666",
     background: "#f0f0f0",
+  },
+  zoneLocked: {
+    cursor: "default",
+    opacity: 0.6,
   },
   zoneLabel: {
     margin: 0,

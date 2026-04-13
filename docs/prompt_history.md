@@ -11604,3 +11604,392 @@ If it accepts bad input, everything downstream is compromised.
     - Introduced strict validation and edge-case expectations to prevent bad data from entering the pipeline
     - Set up a reusable QA evaluation template for future UI/data pipeline components
 ---
+
+### Prompt ID: P-078
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Generate implementation prompt for UI processing state + results display ticket (MVP TDD aligned)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan:
+
+T6-2 - Processing state + results display:
+
+# Description
+Loading state while API processes. On success: show summary stats (clean / rejected counts), download buttons for both CSVs. On error: display error message.
+
+# Acceptance criteria
+- Spinner shown during upload/processing
+- Summary numbers match API response
+- Both download buttons functional
+- API errors surfaced as readable message
+
+# Test plan
+Manual end-to-end test with sample xlsx. Test with intentionally invalid file to see error state.
+```
+
+- **Summary of Response:**
+    - Generated a structured implementation prompt for Claude emphasizing MVP constraints and test-driven development
+    - Reinforced required UI states (loading, success, error) tied directly to API responses
+    - Explicitly framed acceptance criteria and test plan to guide deterministic implementation behavior
+- **Impact:**
+    - Standardized how implementation tickets are translated into executable developer prompts
+    - Strengthened alignment between product requirements and TDD-driven delivery
+    - Improved clarity of expected UI state transitions and error handling behavior
+---
+
+### Prompt ID: P-079
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Frontend upload processing state & results UI integration
+#### Prompt
+```
+🧠 Claude Code Prompt — T6-2 Processing State + Results Display
+
+You are acting as a Lead Frontend Engineer working within a strict MVP data pipeline system.
+
+Your task is to implement:
+
+T6-2 — Processing State + Results Display
+
+This is the first API-integrated frontend feature and connects directly to the backend pipeline built in E5.
+
+🎯 Context
+
+Backend endpoint:
+
+POST /upload
+
+Returns:
+
+{
+  "total_rows": 100,
+  "clean_rows": 80,
+  "rejected_rows": 20,
+  "clean_file": "/download/{filename}",
+  "rejected_file": "/download/{filename}"
+}
+⚠️ MVP Constraints (STRICT)
+
+You MUST follow these rules:
+
+DO:
+Use plain React (no frameworks beyond React)
+Keep state minimal and local to components
+Use native fetch API
+Keep UI simple and functional
+Build on top of T6-1 (UploadDropzone)
+Preserve clean separation of concerns
+DO NOT:
+Do NOT introduce Redux, Zustand, React Query, etc.
+Do NOT add routing
+Do NOT add UI libraries
+Do NOT over-engineer loading abstractions
+Do NOT move logic into backend
+Do NOT persist state globally
+🧩 Required Implementation
+
+You will extend the existing frontend:
+
+frontend/src/components/UploadDropzone.jsx
+
+and possibly create:
+
+frontend/src/components/UploadResult.jsx
+🔁 User Flow (IMPORTANT)
+Step 1 — Upload Start
+
+When user clicks “Upload”:
+
+Trigger API call to POST /upload
+Send file via FormData
+Set loading = true
+Step 2 — Loading State
+
+While request is in progress:
+
+Show spinner or “Processing...” message
+Disable upload button
+Prevent multiple submissions
+Step 3 — Success Response
+
+On success:
+
+Display:
+
+Summary section:
+Total rows
+Clean rows
+Rejected rows
+Download buttons:
+“Download Clean CSV”
+“Download Rejected CSV”
+
+Each button:
+
+Opens link from API response
+Uses browser navigation (window.open or anchor tag)
+Step 4 — Error Handling
+
+On API failure:
+
+Display:
+
+Clear readable error message:
+“Upload failed. Please try again.”
+OR backend-provided message if available
+
+Reset loading state
+
+🧠 State Requirements
+
+Maintain minimal state:
+
+selectedFile
+loading
+error
+result (API response object)
+🎨 UI Requirements (MVP ONLY)
+
+Keep UI minimal:
+
+Dropzone stays from T6-1
+Add below it:
+Loading indicator
+Error message block
+Results panel (conditional render)
+
+No styling frameworks.
+
+🔗 API Integration Rules
+Use fetch
+Use FormData
+Field name for file:
+"file"
+
+Example:
+
+const formData = new FormData();
+formData.append("file", file);
+🧪 Acceptance Criteria (STRICT)
+Loading
+Spinner shown during request
+Upload button disabled during request
+Success
+Summary numbers match backend response exactly
+Clean + rejected download buttons visible
+Buttons work and download correct files
+Error
+Any API failure shows readable message
+UI does not crash
+User can retry upload
+🧪 Manual Test Plan
+
+You MUST verify:
+
+Valid upload
+Upload .xlsx
+See loading state
+See summary
+Download both files
+Invalid file upload
+Upload .csv
+See rejection from T6-1 (no API call)
+Backend error simulation
+Break endpoint or send invalid file
+Verify error message displays cleanly
+🚫 Common Failure Modes to Avoid
+Double-submitting uploads
+Losing file reference after upload
+Mixing loading and error states
+Not resetting state between uploads
+Hardcoding filenames instead of using API response
+📦 Deliverables
+Updated UploadDropzone.jsx
+Optional UploadResult.jsx component
+Clean API integration logic
+Brief explanation of:
+state model
+request flow
+error handling strategy
+🧠 Engineering Principle
+
+This is the first real system integration point.
+
+It must be:
+
+deterministic
+resilient to failure
+simple enough to debug in production
+
+No abstractions unless strictly necessary.
+```
+
+- **Summary of Response:**
+    - Implemented first full frontend → backend integration using fetch + FormData for file upload
+    - Defined a minimal local state model (selectedFile, loading, error, result) to manage UI lifecycle
+    - Added loading state handling with disabled upload controls and user feedback during processing
+    - Rendered success response with summary metrics and download links for clean and rejected CSV outputs
+    - Included basic error handling for API failures with retry capability
+- **Impact:**
+    - Established the first production-like integration point between frontend UI and backend pipeline
+    - Defined the canonical request/response flow for all future ingestion-related UI work
+    - Set a reusable pattern for loading, success, and error state handling in MVP React components
+---
+
+### Prompt ID: P-080
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Senior QA review of frontend-backend upload integration (T6-2 processing state & results UI)
+#### Prompt
+```
+🧠 Claude Code Prompt — T6-2 QA / Senior Test Engineer Review
+You are acting as a Senior QA Engineer, Frontend Test Lead, and System Integration Reviewer.
+Your task is to perform a rigorous production-style review of the implementation for:
+T6-2 — Processing State + Results Display
+This is the first full frontend ↔ backend integration point in the Donor Bureau pipeline.
+🎯 Review Objectives
+You are evaluating whether this feature is:
+* Correctly integrated with the backend /upload API
+* Resilient under failure conditions
+* UI/UX consistent and deterministic
+* MVP-compliant (no overengineering)
+* Safe for production-like usage
+📦 Scope of Review
+You must review:
+* UploadDropzone.jsx
+* Any added components (e.g. UploadResult.jsx)
+* Any API integration logic (fetch calls)
+* State handling logic
+* Error + loading UI
+* Download button implementation
+⚠️ Backend Contract (DO NOT ASSUME BEHAVIOR BEYOND THIS)
+Expected response:
+
+{
+  "total_rows": 100,
+  "clean_rows": 80,
+  "rejected_rows": 20,
+  "clean_file": "/download/{filename}",
+  "rejected_file": "/download/{filename}"
+}
+Assume:
+*  Synchronous processing 
+*  Files already exist when response is returned 
+* /download/{filename} returns raw CSV 
+🔍 What You Must Evaluate
+1. API Integration Correctness (CRITICAL)
+*  Is fetch used correctly with FormData? 
+*  Is file appended with correct key (file)? 
+*  Are headers correctly omitted (browser handles multipart)? 
+*  Is request properly awaited? 
+*  Are errors caught correctly? 
+2. Loading State Integrity
+*  Is loading state: 
+   *  Set BEFORE request 
+   *  Cleared in BOTH success and error paths? 
+*  Can user trigger multiple uploads simultaneously? 
+*  Is UI properly disabled during upload? 
+3. Error Handling (CRITICAL)
+*  Are API errors handled safely? 
+*  Does UI: 
+   *  crash on failed response? 
+   *  show raw stack traces? (BAD) 
+*  Is error message user-readable? 
+*  Are network errors handled (offline / timeout)? 
+4. State Management Safety
+Check for:
+*  stale file state after upload 
+*  overwritten result state 
+*  race conditions (rapid uploads) 
+*  inconsistent UI state combinations: 
+   *  loading + error 
+   *  success + loading 
+   *  error + stale result 
+5. Results Rendering Logic
+*  Do summary values exactly match API response? 
+*  Are values correctly mapped? 
+   *  total_rows 
+   *  clean_rows 
+   *  rejected_rows 
+*  Any transformation bugs? 
+6. Download Functionality (CRITICAL)
+*  Do download buttons use correct backend URLs? 
+*  Are URLs taken from API response (NOT hardcoded)? 
+*  Do they work with: 
+   *  window.open 
+   *  anchor tags 
+*  What happens if filename is missing? 
+7. UX / UI Flow
+Evaluate:
+*  Is loading state visible and clear? 
+*  Is user feedback immediate? 
+*  Is error state recoverable (can retry upload)? 
+*  Is transition between states clean? 
+Valid states:
+1.  idle (no file) 
+2.  file selected 
+3.  uploading 
+4.  success 
+5.  error 
+Check for invalid mixed states.
+8. Edge Cases (VERY IMPORTANT)
+Simulate mentally:
+*  Upload → fail → retry 
+*  Upload → success → upload again 
+*  Slow network response 
+*  Broken backend response (missing fields) 
+*  Double-click upload button 
+*  Switching files mid-upload 
+9. MVP Discipline Check
+Flag anything that violates MVP:
+*  Redux / global state usage ❌ 
+*  React Query / Axios abstraction layers ❌ 
+*  Routing added prematurely ❌ 
+*  Over-engineered component splitting ❌ 
+*  Excess abstraction of fetch logic ❌ 
+10. Code Quality
+*  Is code readable and linear? 
+*  Are async flows easy to follow? 
+*  Any duplicated logic? 
+*  Any unnecessary complexity? 
+🧪 Required Output Format
+1. 🧠 Executive Summary
+*  ✅ READY 
+*  ⚠️ READY WITH FIXES 
+*  ❌ NOT READY 
+2. 🔴 Critical Issues (Must Fix Before Merge)
+*  integration bugs 
+*  broken flows 
+*  incorrect API usage 
+*  unsafe state handling 
+3. 🟡 Medium Risks
+*  UX issues 
+*  brittle logic 
+*  race conditions 
+4. 🟢 Minor Issues
+*  cleanup 
+*  readability 
+*  naming improvements 
+5. 🧪 Missing Test Coverage / Gaps
+*  what is not tested or risky in manual flow 
+6. 🔧 Required Fixes
+Concrete instructions only — no vague feedback
+7. 🧠 Final Verdict
+Clear decision:
+*  APPROVE 
+*  APPROVE WITH FIXES 
+*  REJECT 
+🧠 Engineering Principle
+This is the first real system integration between UI and backend pipeline.
+Treat it like production software — not a demo.
+```
+
+- **Summary of Response:**
+    - Defined a full senior QA review checklist for the T6-2 frontend-backend integration
+    - Established evaluation criteria across API correctness, state management, UX flow, and error handling
+    - Required structured output format with clear severity tiers (critical/medium/minor)
+- **Impact:**
+    - Created a formal QA gate for the first production-style integration point in the system
+    - Standardized how Claude should assess frontend upload reliability and API contract adherence
+    - Enforced MVP discipline and prevented premature architectural complexity during review phase
