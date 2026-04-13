@@ -12680,3 +12680,456 @@ Be ruthless in evaluation.
     - Standardized QA review process ahead of integration testing (T7-2)
     - Ensured early detection of contract drift and coverage gaps
     - Set high-quality bar for test reliability and production readiness
+---
+
+### Prompt ID: P-086
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** End-to-end pipeline integration test implementation
+#### Prompt
+```
+🧠 Claude Code Prompt — T7-2 Full Pipeline Integration Test
+
+You are acting as a Lead Data Engineer implementing a production-quality integration test for a data pipeline system.
+
+This is T7-2 — Full Pipeline Integration Test.
+
+🎯 Objective
+
+Build a true end-to-end integration test that validates the entire pipeline:
+
+upload → parse → map → normalize → validate → split → enforce schema → write CSV → download
+
+This test must verify that the system behaves correctly using real Excel fixtures and actual API endpoints — not mocks.
+
+⚠️ Critical Context
+The pipeline is already fully implemented (T1–T5 complete)
+Fixtures exist from T7-1
+This test is the first full-system validation
+This is the closest thing to production behavior before real users
+
+This test must reflect real-world usage, not synthetic unit behavior.
+
+📦 Scope of Implementation
+
+Create:
+
+backend/tests/integration/test_full_pipeline.py
+
+Use:
+
+pytest
+httpx.AsyncClient (FastAPI test client)
+
+Real .xlsx fixture files from:
+
+backend/tests/fixtures/
+🧪 Test Flow (REQUIRED)
+
+The test must:
+
+1. Upload a real Excel fixture
+Use multipart form upload
+
+Endpoint:
+
+POST /upload
+2. Validate API response
+
+Assert:
+
+Status code = 200
+JSON structure matches:
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "...",
+  "rejected_file": "..."
+}
+3. Validate row counts
+assert total_rows == clean_rows + rejected_rows
+4. Download generated files
+
+Call:
+
+GET /download/{filename}
+
+For both:
+
+clean_file
+rejected_file
+5. Validate CSV contents (CRITICAL)
+Clean CSV:
+Columns EXACTLY match:
+[
+  "First", "Last", "Address1", "City",
+  "State", "Zip", "DonationDate",
+  "DonationAmount", "Client"
+]
+No extra columns
+No missing columns
+Rejected CSV:
+Must include:
+All original fields (where applicable)
+rejection_reason column
+Every row must have a non-empty rejection_reason
+6. Determinism check (CRITICAL)
+
+Run the pipeline twice on the same fixture:
+
+Compare:
+Clean CSV contents
+Rejected CSV contents
+
+They must be identical
+
+⚠️ Do NOT compare filenames (timestamps will differ)
+
+📊 Fixture Requirements
+
+Use at least:
+
+1. “Happy path” fixture
+All valid rows
+Expect:
+rejected_rows = 0
+2. “Mixed data” fixture
+Valid + invalid rows
+Expect:
+both clean and rejected rows present
+3. “Metadata/header offset” fixture
+Header not in row 1
+Ensures parser works end-to-end
+🧪 Assertions MUST Focus On
+File CONTENT (not filenames)
+Schema correctness
+Row counts
+Rejection behavior
+Deterministic output
+🚫 Explicit Non-Goals
+Do NOT mock any pipeline stage
+Do NOT test internal functions directly
+Do NOT rely on filenames (timestamps vary)
+Do NOT hardcode row counts unless fixture guarantees it
+🧱 Implementation Expectations
+Use pandas to read downloaded CSVs
+pd.read_csv(...)
+Structure tests cleanly
+
+Example:
+
+@pytest.mark.asyncio
+async def test_full_pipeline_mixed_fixture():
+    ...
+Keep tests deterministic
+No randomness
+No time-based assertions
+No dependency on execution order
+🧪 Suggested Test Cases
+
+Implement at least:
+
+test_full_pipeline_happy_path
+test_full_pipeline_mixed_data
+test_full_pipeline_header_offset
+test_full_pipeline_deterministic_output
+📘 Contract Alignment (MANDATORY)
+
+Validate against:
+
+input_contract.md
+Schema enforcement (T5-6)
+Validation rules (T4)
+
+If any mismatch is observed:
+
+FAIL the test
+Do NOT silently adapt
+🧪 Acceptance Criteria (MUST PASS)
+clean_df schema matches spec EXACTLY
+rejected_df includes rejection_reason on every row
+clean + rejected = total input rows
+Deterministic outputs across runs
+Assertions validate file contents, NOT filenames
+🧠 Engineering Principle
+
+This test is your final safety net before real users.
+
+If this test passes, you can trust:
+
+your pipeline wiring
+your schema enforcement
+your validation logic
+your output correctness
+
+If it’s weak, everything downstream is unreliable.
+
+✅ Deliverables
+Fully implemented integration test file
+Clean, readable test structure
+Strong assertions with meaningful failure messages
+```
+
+- **Summary of Response:**
+    - Implemented full end-to-end integration tests using real Excel fixtures and FastAPI test client
+    - Validated API responses, row counts, and strict schema enforcement for clean/rejected CSVs
+    - Added deterministic checks by comparing output contents across multiple runs
+    - Structured multiple test cases covering happy path, mixed data, and header offset scenarios
+- **Impact:**
+    - Established a production-level safety net validating the entire pipeline behavior
+    - Ensured schema, validation, and file outputs are reliable before user exposure
+    - Reduced risk of silent data quality issues in downstream data warehouse ingestion
+---
+
+### Prompt ID: P-087
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Production-grade QA audit of full pipeline integration test (T7-2)
+#### Prompt
+```
+🧠 Claude Code Prompt — T7-2 QA / Senior Test Architect Review
+
+You are acting as a Senior QA Architect + Lead Data Pipeline Tester.
+
+Your task is to perform a strict, production-grade audit of:
+
+T7-2 — Full Pipeline Integration Test
+
+This is the most critical test in the system.
+If this test is weak, the pipeline is untrustworthy.
+
+🎯 Review Objectives
+
+You must determine whether the integration test:
+
+Validates the entire pipeline end-to-end
+Uses realistic fixture data
+Enforces schema + validation correctness
+Guarantees deterministic outputs
+Would catch real production failures
+📦 Scope of Review
+
+You must review:
+
+backend/tests/integration/test_full_pipeline.py
+
+And any referenced:
+
+Fixtures (backend/tests/fixtures/)
+Supporting utilities used in the test
+📘 Source of Truth
+
+Evaluate strictly against:
+
+1. /docs/input_contract.md
+Header detection behavior
+Metadata row handling
+Column expectations
+Data assumptions
+2. MVP Guarantees
+Deterministic processing
+Clear separation of clean vs rejected rows
+Strict schema enforcement (T5-6)
+🔍 REQUIRED AUDIT AREAS
+1. True End-to-End Coverage (CRITICAL)
+
+Confirm the test actually exercises:
+
+/upload → parser → mapping → normalization → validation → split → schema → CSV → /download
+
+🚫 Fail if:
+
+Any stage is mocked
+Any stage is bypassed
+Test interacts with internal functions instead of API
+2. API-Level Testing
+
+Verify:
+
+Uses httpx / FastAPI test client
+Sends real multipart .xlsx upload
+Calls:
+POST /upload
+GET /download/{filename}
+
+🚫 Fail if:
+
+Files are read directly from disk instead of API download
+API layer is skipped
+3. Response Validation
+
+Ensure strict assertions:
+
+{
+  "total_rows": int,
+  "clean_rows": int,
+  "rejected_rows": int,
+  "clean_file": "...",
+  "rejected_file": "..."
+}
+
+Check:
+
+All fields present
+Types correct
+total = clean + rejected
+4. CSV Content Validation (CRITICAL)
+Clean CSV:
+
+Must assert:
+
+EXACT schema:
+[
+  "First", "Last", "Address1", "City",
+  "State", "Zip", "DonationDate",
+  "DonationAmount", "Client"
+]
+No extra columns
+No missing columns
+Rejected CSV:
+
+Must assert:
+
+rejection_reason exists
+Every row has NON-EMPTY reason
+
+🚫 Fail if:
+
+Only column presence is checked but not content
+Rejection reasons are not validated
+5. Determinism Check (CRITICAL)
+
+Verify:
+
+Same fixture run twice
+Outputs are identical (content-level)
+
+🚫 Fail if:
+
+Filenames are compared (timestamps vary)
+Determinism is not tested at all
+6. Fixture Coverage
+
+Ensure multiple fixtures are used:
+
+✅ happy path (no rejects)
+✅ mixed valid/invalid
+✅ header offset / metadata rows
+✅ multi-sheet (STRONGLY preferred)
+
+🚫 Fail if:
+
+Only one fixture used
+Fixtures are too simple
+7. Assertion Strength
+
+Evaluate:
+
+Are assertions meaningful?
+Do they fail loudly and clearly?
+Do they validate behavior or just existence?
+
+🚫 Weak examples:
+
+assert response.status_code == 200 only
+No validation of actual CSV contents
+8. File Handling Integrity
+
+Check:
+
+Files downloaded via API
+Read using pandas or equivalent
+No reliance on:
+file paths
+temp directories
+implementation internals
+9. Edge Case Coverage
+
+Look for:
+
+Empty rejected file case
+Mixed data case
+Non-trivial datasets
+
+Flag missing scenarios.
+
+10. Test Isolation & Stability
+
+Ensure:
+
+No shared state between tests
+No reliance on execution order
+No filesystem pollution across runs
+11. MVP Discipline
+
+Reject if:
+
+Overengineered abstractions
+Complex helper layers hiding logic
+Excessive fixtures beyond scope
+
+Approve if:
+
+Clear, direct, readable test logic
+Focused on correctness
+🧪 REQUIRED OUTPUT FORMAT
+1. 🧠 Executive Summary
+✅ READY
+⚠️ READY WITH FIXES
+❌ NOT READY
+2. 🔴 Critical Issues
+
+Must-fix problems:
+
+Missing determinism check
+Weak schema validation
+Not truly end-to-end
+3. 🟡 Coverage Gaps
+Missing fixture scenarios
+Missing edge cases
+4. 🟢 Minor Issues
+Naming
+readability
+structure
+5. 📉 Contract Violations
+
+Mismatch between:
+
+input_contract.md
+test expectations
+6. 🧪 Test Strength Assessment
+
+Answer:
+
+Would this test catch a real production failure?
+
+Explain why or why not.
+
+7. 🔧 Required Fixes
+
+Concrete, actionable improvements
+
+8. 🧠 Final Verdict
+APPROVE
+APPROVE WITH FIXES
+REJECT
+🧠 Engineering Principle
+
+This test is your final gate before real-world data hits your system.
+
+If a malformed Excel file breaks production later,
+it means this test failed to simulate reality.
+
+Be ruthless.
+```
+
+- **Summary of Response:**
+    - Defined a strict QA audit framework for evaluating a full pipeline integration test (T7-2)
+    - Enforced end-to-end validation across upload → processing → validation → download flow
+    - Required schema correctness, deterministic outputs, and multi-fixture coverage
+    - Mandated API-level testing and rejection of mocked/internal-only testing approaches
+- **Impact:**
+    - Established a production-grade testing standard for pipeline reliability
+    - Ensured integration tests reflect real-world failure scenarios and data integrity risks
+    - Strengthened confidence in data ingestion correctness before warehouse entry
