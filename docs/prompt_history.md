@@ -12272,3 +12272,411 @@ Every row must be traceable, deterministic, and contract-compliant.
     - Enforces strict contract-driven validation across full stack
     - Surfaces architectural risks, data integrity issues, and integration gaps prior to next phase
 ---
+
+### Prompt ID: P-083
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for test fixture library (T7-1)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+We're entering this epic (with these tickets) 
+T7 - Testing & QA: 
+T7-1 - Test fixture library 
+T7-2 - Integration test full pipeline 
+T7-3 - Edge case coverage 
+
+lets start with: 
+T7-1 - Test fixture library: 
+# Description 
+Build reusable .xlsx fixtures: perfect data, missing columns, mixed date formats, leading-zero ZIPs, empty sheets, 1000+ rows, multi-sheet with different headers. 
+
+# Acceptance criteria 
+- At least 6 distinct fixture files 
+- Each fixture documented with expected outcome 
+- Fixtures used across unit + integration tests
+```
+
+- **Summary of Response:**
+    - Generated a structured prompt directing Claude to build reusable Excel fixture files
+    - Defined clear fixture scenarios (valid, invalid, edge cases) aligned with acceptance criteria
+    - Emphasized documentation of expected outcomes for each fixture
+    - Reinforced reuse across both unit and integration testing layers
+- **Impact:**
+    - Established standardized test data foundation for QA workflows
+    - Enabled consistent validation of pipeline behavior across scenarios
+    - Improved test reliability and coverage for downstream testing tickets
+---
+
+### Prompt ID: P-084
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Build deterministic Excel test fixture library for QA validation
+#### Prompt
+```
+🧠 Claude Code Prompt — T7-1 Test Fixture Library
+
+You are acting as a Lead Data Engineer working under a Senior Project Manager + QA-first MVP process.
+
+Your task is to implement:
+
+T7-1 — Test Fixture Library
+
+This is a foundational QA asset.
+Everything in T2–T5 is only as reliable as the fixtures that validate it.
+
+🎯 Objective
+
+Build a reusable, deterministic .xlsx fixture library that:
+
+Validates all core assumptions in input_contract.md
+Covers real-world structural variation
+Supports unit tests AND full pipeline integration tests
+⚠️ MVP Constraints (STRICT)
+DO:
+Keep fixtures small, clear, and intentional
+Prioritize coverage of assumptions over volume
+Ensure fixtures are deterministic and readable
+Design fixtures to be reused across multiple tests
+DO NOT:
+Generate random or synthetic noise data
+Overbuild large datasets beyond what is needed
+Introduce unnecessary complexity (merged cells, styling, etc.)
+Depend on external data sources
+📁 Required Structure
+
+Create:
+
+backend/tests/fixtures/
+
+Each fixture must be a real .xlsx file, not CSV.
+
+🧩 Required Fixtures (MINIMUM SET)
+
+You must implement at least 6 fixtures, covering the following scenarios:
+
+1. fixture_perfect.xlsx
+
+Purpose: Happy path baseline
+
+Header in row 1
+All required columns present
+Clean, valid data
+Single sheet
+
+Expected outcome:
+
+All rows → clean_df
+0 rejected rows
+2. fixture_header_offset.xlsx
+
+Purpose: Header detection + metadata rows
+
+Structure:
+
+Row 1: metadata
+Row 2: metadata
+Row 3: header
+Row 4+: data
+
+Expected outcome:
+
+Header correctly detected
+Metadata skipped
+All valid rows processed
+3. fixture_missing_columns.xlsx
+
+Purpose: Missing required fields
+
+Omit one or more canonical columns (e.g. Last, Zip)
+
+Expected outcome:
+
+Rows flow through mapping
+Validation stage rejects rows with missing fields
+4. fixture_mixed_dates.xlsx
+
+Purpose: Date normalization coverage
+
+Include:
+
+MM/DD/YYYY
+YYYY-MM-DD
+"March 16, 2025"
+Excel serial date
+
+Expected outcome:
+
+All valid formats parsed correctly
+No false rejections
+5. fixture_zip_edge_cases.xlsx
+
+Purpose: ZIP preservation
+
+Include:
+
+"01234" (leading zero)
+12345 (numeric)
+"1234" (invalid)
+"123456" (invalid)
+
+Expected outcome:
+
+Valid ZIPs preserved as strings
+Invalid ZIPs rejected in validation
+6. fixture_multi_sheet.xlsx
+
+Purpose: Multi-client + multi-schema
+
+2–3 sheets
+Different header names per sheet (alias variations)
+Different header row positions
+
+Expected outcome:
+
+All sheets parsed dynamically
+_source_sheet correct
+Later used for Client injection validation
+7. (Optional but STRONGLY RECOMMENDED) fixture_empty_sheet.xlsx
+
+Purpose: Empty data handling
+
+Valid header
+No data rows
+
+Expected outcome:
+
+Sheet skipped without error
+8. (Optional) fixture_large.xlsx
+
+Purpose: Performance sanity check
+
+~1000 rows (not excessive)
+Simple structure
+
+Expected outcome:
+
+Processes within reasonable time
+No memory issues
+📘 Fixture Documentation (REQUIRED)
+
+Create:
+
+/docs/fixture_catalog.md
+
+For EACH fixture include:
+
+### fixture_name.xlsx
+
+Purpose:
+- What behavior it validates
+
+Structure:
+- Sheet names
+- Header row location
+- Special characteristics
+
+Expected Outcome:
+- clean_rows count (approx or exact)
+- rejected_rows count
+- any special expectations (e.g., header detection, alias mapping)
+🔗 Integration Requirements
+
+Fixtures must be:
+
+Used in unit tests where applicable
+Used in T7-2 integration test (full pipeline)
+
+You are not required to fully wire tests here, but:
+
+Ensure fixtures are test-ready
+Paths and naming are consistent
+⚠️ Critical Engineering Rules
+Determinism
+Same fixture → same output ALWAYS
+No randomness
+Readability
+Keep row counts small (except large fixture)
+Make data human-inspectable
+Contract Alignment
+
+Every fixture must map to at least one assumption in:
+
+/docs/input_contract.md
+🚫 Common Failure Modes (Avoid)
+Creating fixtures that don’t actually test anything
+Overloading a single fixture with too many concerns
+Not documenting expected outcomes
+Using CSV instead of .xlsx
+Using unrealistic or messy data that obscures intent
+📦 Deliverables
+Minimum 6 .xlsx fixture files
+/docs/fixture_catalog.md
+Clean, organized fixture directory
+Brief explanation of:
+how fixtures map to contract assumptions
+how they will be reused in T7-2 and T7-3
+🧠 Guiding Principle
+
+Fixtures are your ground truth for correctness.
+
+If a real-world file breaks your system later, it means the fixture library failed.
+
+Build them like they will protect you in production.
+```
+
+- **Summary of Response:**
+    - Defined a structured fixture library with 6–8 targeted Excel scenarios covering core pipeline assumptions
+    - Emphasized deterministic, minimal, and reusable test data design aligned to input contract
+    - Introduced fixture catalog documentation for traceability and expected outcomes
+    - Established linkage between fixtures, unit tests, and full pipeline integration testing
+- **Impact:**
+    - Formalized QA foundation as a first-class component of the pipeline
+    - Ensured all downstream transformations (T2–T5) can be validated against controlled inputs
+    - Created a reusable testing asset critical for regression prevention and production reliability
+    - Enabled consistent validation strategy for upcoming integration (T7-2) and QA workflows
+---
+
+### Prompt ID: P-085
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA audit of test fixture library for data pipeline
+#### Prompt
+```
+🧠 Claude Code Prompt — T7-1 QA / Senior Test Architect Review
+You are acting as a Senior QA Architect + Data Pipeline Test Lead.
+Your task is to perform a rigorous audit of the implementation for:
+T7-1 — Test Fixture Library
+This is not just test data — this is the foundation of all validation for the pipeline.
+If fixtures are weak, the entire system is untrustworthy.
+🎯 Review Objectives
+You are evaluating whether the fixture library:
+* Accurately represents real-world Excel variability
+* Fully supports the input_contract.md
+* Enables deterministic and repeatable testing
+* Provides true coverage of pipeline assumptions
+* Is structured for reuse across unit and integration tests
+📦 Scope of Review
+You must review:
+* All .xlsx files in:
+
+backend/tests/fixtures/
+/docs/fixture_catalog.md
+How fixtures are referenced (or intended to be used) in tests 📘 Source of Truth You MUST evaluate against:
+/docs/input_contract.md
+Header detection rules
+Metadata row behavior
+Column alias expectations
+Data assumptions (ZIP, date, etc.)
+Multi-sheet structure
+MVP Testing Philosophy
+Small, deterministic fixtures
+Each fixture has a clear purpose
+Fixtures validate assumptions — not just “exist” 🔍 REQUIRED AUDIT AREAS
+Fixture Coverage (CRITICAL) Verify that fixtures cover ALL major behaviors:
+Header in row 1
+Header offset (metadata rows before header)
+Multi-sheet workbooks
+Alias variation across sheets
+Missing required columns
+Mixed date formats
+ZIP edge cases (leading zeros, invalid lengths)
+Empty sheet handling Flag anything missing.
+Fixture Quality For EACH fixture:
+Is its purpose clear and isolated?
+Does it test ONE primary concern (not many mixed)?
+Is data readable and human-auditable?
+Is it minimal (not bloated)?
+Determinism Check:
+Does fixture always produce same output?
+Any randomness or ambiguity?
+Any reliance on Excel behavior that may vary?
+Contract Alignment (CRITICAL) Cross-check fixtures against input_contract.md:
+Do fixtures actually reflect documented assumptions?
+Are there:
+undocumented patterns?
+missing patterns? Flag any:
+contract drift
+fixture gaps vs assumptions
+Documentation Quality Review:
+/docs/fixture_catalog.md
+For EACH fixture:
+*  Is purpose clearly stated? 
+*  Is structure described (header row, sheets, etc.)? 
+*  Are expected outcomes defined? 
+Missing expectations = FAIL.
+6. Test Reusability
+Evaluate:
+*  Can fixtures be reused across: 
+   *  parser tests 
+   *  mapping tests 
+   *  normalization tests 
+   *  integration tests? 
+Or are they too narrowly scoped?
+7. Real-World Fidelity
+Ask:
+*  Would this fixture realistically appear in production? 
+*  Does it reflect: 
+   *  messy headers? 
+   *  alias variation? 
+   *  inconsistent formatting? 
+Or is it too “perfect”?
+8. Missing Edge Cases
+Identify gaps such as:
+*  sheet with NO detectable header 
+*  sheet with partial alias match (< threshold) 
+*  instructions/non-data sheet 
+*  malformed ZIP + date combinations 
+*  duplicate column names 
+*  extra irrelevant columns 
+9. MVP Discipline
+Flag violations:
+*  overly large datasets 
+*  unnecessary complexity 
+*  fixtures testing things not in scope 
+*  overengineering instead of clarity 
+🧪 REQUIRED OUTPUT FORMAT
+1. 🧠 Executive Summary
+*  ✅ READY 
+*  ⚠️ READY WITH FIXES 
+*  ❌ NOT READY 
+2. 🔴 Critical Issues
+*  Missing required fixtures 
+*  Broken or misleading fixtures 
+*  Missing expected outcomes 
+*  Contract misalignment 
+3. 🟡 Coverage Gaps
+*  What behaviors are not tested? 
+4. 🟢 Minor Issues
+*  Naming 
+*  readability 
+*  small improvements 
+5. 📉 Contract vs Fixture Drift
+Explicit mismatches between:
+*  input_contract.md 
+*  fixture behaviors 
+6. 🧪 Test Readiness Assessment
+*  Are fixtures ready for T7-2 integration tests? 
+*  Any blockers? 
+7. 🔧 Required Fixes
+Concrete, actionable changes
+8. 🧠 Final Verdict
+*  APPROVE 
+*  APPROVE WITH FIXES 
+*  REJECT 
+🧠 Engineering Principle
+Fixtures are your only protection against unknown input formats.
+If a real client file breaks the pipeline later,  it means your fixture library failed here.
+Be ruthless in evaluation.
+```
+
+- **Summary of Response:**
+    - Defined a comprehensive QA audit framework for evaluating test fixtures
+    - Emphasized strict alignment with input_contract.md as source of truth
+    - Introduced structured review criteria including coverage, determinism, and realism
+    - Established clear pass/fail outputs and actionable review expectations
+- **Impact:**
+    - Elevated testing rigor by treating fixtures as critical system foundation
+    - Standardized QA review process ahead of integration testing (T7-2)
+    - Ensured early detection of contract drift and coverage gaps
+    - Set high-quality bar for test reliability and production readiness
