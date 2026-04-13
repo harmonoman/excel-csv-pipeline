@@ -10,8 +10,8 @@ export default defineConfig({
     // its service name "backend" from inside docker, but from the host
     // browser we use localhost:8000.
     proxy: {
-      "/upload": "http://localhost:8000",
-      "/download": "http://localhost:8000",
+      "/upload": "http://backend:8000",
+      "/download": "http://backend:8000",
     },
   },
 });
