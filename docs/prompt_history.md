@@ -10682,3 +10682,793 @@ contract fidelity over implementation shortcuts
     - Formalized a hard QA checkpoint for production readiness validation
     - Enforced strict contract-first, deterministic design principles across the pipeline
     - Created a go/no-go decision framework that governs advancement to next development phase
+---
+
+### Prompt ID: P-071
+- **Author:** Mark / Claude
+- **Target:** ChatGPT
+- **Purpose:** Generate QA review prompt for frontend scaffold proposal
+#### Prompt
+```
+I gave this prompt to Claude and it generated the proposal, please digest this and give a prompt to claude to review the proposal as a senior lead project manager / QA / engineer for best next steps:
+
+now please generate a proposal as a lead engineer on this ticket to the senior project manager / QA for review on strategy and adherence to MVP
+
+5:59 PM
+Here's my proposal for T6-0 frontend scaffold before we proceed.
+
+T6-0 — Frontend Scaffold: Lead Engineer Proposal
+To: Senior Project Manager / QA From: Lead Engineer Re: React + Vite frontend scaffold strategy before T6-1 lands
+
+What this ticket is and isn't
+T6-0 is not a feature ticket. It's infrastructure — the minimal scaffolding required so that T6-1 (drag-and-drop component) and T6-2 (API integration) have a place to live. It should be invisible to the end user and produce no visible UI on its own.
+
+What we're scaffolding and why
+React + Vite via npm create vite@latest . -- --template react. Vite is the standard dev toolchain for React MVPs in 2026 — fast HMR, zero config, and the same stack referenced in the original project plan. No TypeScript for now — the original ticket spec says React only, and adding TypeScript at this stage adds friction without adding value at MVP scale.
+
+react-dropzone installed alongside base dependencies since T6-1 depends on it and it makes no sense to scaffold without it.
+
+No UI framework. The original T6-1 ticket explicitly says "No UI frameworks required — keep styling minimal." Tailwind, MUI, and Chakra are all off the table for MVP. Inline styles or a small CSS file only.
+
+No test framework scaffolded. T6-1 is manually tested per the ticket spec. We don't add Jest or Vitest until there's a reason to — that's post-MVP scope.
+
+Dev container approach
+The current dev container is Python-only. We're updating it to install Node 20 inside the same container via NodeSource, so the full stack (backend + frontend) is available in one environment. This is the correct MVP approach — running two containers or requiring devs to exit the container for frontend work adds unnecessary friction.
+
+The postCreateCommand will run both uv sync --dev (backend) and npm install (frontend) on container creation so the environment is ready with no manual steps.
+
+What gets committed in T6-0
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx          ← minimal shell, no real UI yet
+│   └── components/      ← empty, ready for T6-1
+.devcontainer/
+└── devcontainer.json    ← updated with Node 20 + npm install
+Dockerfile               ← updated with Node 20 install
+Boilerplate removed: App.css, assets/react.svg, public/vite.svg — none of it is relevant to this project.
+
+App.jsx at T6-0 will be a two-line shell:
+
+jsx
+export default function App() {
+  return <main style={{ maxWidth: 640, margin: "3rem auto", padding: "0 1.5rem" }} />
+}
+No content. T6-1 drops UploadDropzone into it.
+
+MVP adherence check
+Concern	Position
+Are we over-building?	No — Vite scaffold is the minimum viable starting point
+Does this affect the backend?	No — purely additive, no backend files touched
+Does this affect CI?	Potentially — CI currently only runs uv run pytest. We should confirm the GitHub Actions workflow doesn't break on the new frontend/ directory. No frontend CI step is being added at this stage.
+Is this reversible?	Yes — the entire frontend/ directory can be deleted with no backend impact
+Does this block anything?	Yes — T6-1 and T6-2 cannot proceed without it
+One open question for PM/QA review
+Should npm run dev (frontend) run automatically when the dev container starts, or should it be a manual step?
+
+My recommendation: manual for now. The postCreateCommand installs deps but doesn't start the dev server. Devs run npm run dev themselves when they need it. Auto-starting both uvicorn and Vite on container launch adds noise and port conflicts during backend-only work. This can be revisited in T6-2 when both servers need to run together.
+
+Proposed commit
+chore: scaffold React + Vite frontend, add Node 20 to dev container (T6-0)
+Awaiting sign-off before rebuilding the container and merging.
+```
+
+- **Summary of Response:**
+    - Generated a structured meta-prompt instructing Claude to review the proposal from PM/QA/engineering perspectives
+    - Emphasized validating MVP adherence, scope control, and avoidance of over-engineering
+    - Directed focus toward risks, CI impact, dev container setup, and dependency decisions
+    - Included requirement to provide clear approval, requested changes, and next-step actions
+- **Impact:**
+    - Introduced a formal QA review layer before implementation
+    - Helped enforce discipline around MVP boundaries and architectural decisions
+    - Reduced risk of unnecessary complexity in frontend setup
+    - Established a repeatable pattern for proposal → review → approval workflow
+---
+
+### Prompt ID: P-072
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Frontend scaffold proposal audit for MVP alignment
+#### Prompt
+```
+🧠 Claude Review Prompt — T6-0 Frontend Scaffold Proposal Audit
+
+You are acting as a Senior Project Manager + Lead QA Engineer + Senior Data Engineer reviewer.
+
+Your task is to perform a critical review of the T6-0 Frontend Scaffold Proposal that was just generated.
+
+This is NOT an implementation task.
+
+This is a strategy, scope, and MVP alignment review before any code is written or merged.
+
+🎯 Objective
+
+Determine whether the proposed approach for:
+
+T6-0 — Frontend Scaffold (React + Vite + Dev Container Updates)
+
+is:
+
+aligned with MVP goals
+consistent with the existing backend-first architecture
+not introducing unnecessary complexity or risk
+the correct foundation for T6-1 and T6-2
+🧠 Context You MUST Consider
+Current System State (CRITICAL)
+
+The backend pipeline is fully built and validated through T5:
+
+ingestion (FastAPI)
+parsing (multi-sheet, header detection)
+mapping + normalization
+validation engine
+clean/rejected split
+strict schema enforcement
+CSV output + download endpoints
+deterministic file naming
+logging
+full test suite + fixtures
+
+👉 This system is the core product.
+👉 The frontend is a thin UX layer, NOT the product.
+
+MVP Philosophy (NON-NEGOTIABLE)
+
+This project prioritizes:
+
+simplicity over completeness
+correctness over convenience
+minimal surface area over flexibility
+
+Frontend must be:
+
+lightweight
+low-risk
+easily removable
+not coupled to backend logic
+🔍 Review Tasks
+1. Scope Validation (CRITICAL)
+
+Evaluate whether T6-0 is correctly scoped as:
+
+infrastructure only (no user-facing functionality)
+minimal setup required for T6-1
+
+Answer:
+
+Is anything unnecessary being introduced?
+Is anything missing that will block T6-1?
+2. Technology Choices
+
+Evaluate the decision to use:
+
+React + Vite
+no TypeScript
+no UI framework
+no test framework
+React Dropzone pre-installed
+
+For each:
+
+Is this correct for MVP?
+Is anything over-engineered?
+Is anything under-prepared?
+3. Dev Container Strategy (HIGH RISK AREA)
+
+Critically evaluate:
+
+Adding Node 20 into the existing Python dev container
+
+Answer:
+
+Is this the correct approach for MVP?
+Are there risks (bloat, rebuild time, environment complexity)?
+Should frontend and backend be separated instead?
+Does this violate simplicity or improve developer experience?
+
+👉 This is the MOST important part of the review.
+
+4. CI/CD Impact
+
+Evaluate:
+
+current GitHub Actions only runs uv run pytest
+proposal does NOT add frontend CI
+
+Answer:
+
+Is this acceptable for MVP?
+Are there any hidden risks (e.g., failing builds due to frontend folder)?
+Should anything minimal be added now?
+5. File Structure Review
+
+Evaluate proposed structure:
+
+frontend/
+  src/
+    App.jsx
+    components/
+
+Answer:
+
+Is this minimal and sufficient?
+Any unnecessary files?
+Any missing structure needed for T6-1 or T6-2?
+6. Dependency Timing
+
+Evaluate:
+
+Installing React Dropzone during T6-0
+
+Answer:
+
+Correct to install early?
+Or should it be introduced in T6-1?
+7. Dev Workflow Decision
+
+Evaluate the open question:
+
+Should npm run dev auto-start in container?
+
+Answer:
+
+Which is better for MVP:
+manual start
+automatic start
+Consider:
+developer experience
+noise
+backend-first workflow
+8. Risk Assessment
+
+Identify any:
+
+architectural risks
+coupling risks
+future friction
+unnecessary complexity
+🚨 Red Flags (Call Out If Present)
+frontend over-engineered relative to backend
+unnecessary tooling introduced
+container complexity increases significantly
+frontend tightly coupled to backend
+premature optimization
+📦 Output Format
+
+Return your review in this structure:
+
+1. Executive Summary
+
+(pass / pass with modifications / reject)
+
+2. What Is Correct
+list strong decisions
+3. Issues / Risks
+list concerns
+clearly label severity (high / medium / low)
+4. Required Changes Before Approval
+concrete changes that MUST be made
+5. Optional Improvements (Post-MVP)
+things to defer
+6. Final Decision
+APPROVE / APPROVE WITH CHANGES / REJECT
+🧠 Final Instruction
+
+Be strict.
+
+This is a guardrail checkpoint before introducing frontend complexity into a clean backend system.
+
+If something feels even slightly overbuilt for MVP → challenge it.
+```
+
+- **Summary of Response:**
+    - Enforced strict MVP alignment, emphasizing frontend as a thin, decoupled layer over a completed backend
+    - Identified dev container (Node + Python) as primary risk area and evaluated tradeoffs
+    - Challenged early dependency installation (React Dropzone) and unnecessary tooling
+    - Recommended minimal structure and deferred enhancements to post-MVP
+- **Impact:**
+    - Prevented premature frontend complexity from contaminating a stable backend system
+    - Drove decision-making toward minimal, low-risk frontend scaffolding
+    - Established a formal review gate before introducing new architectural layers
+---
+
+### Prompt ID: P-073
+- **Author:** Mark / Claude
+- **Target:** ChatGPT
+- **Purpose:** Frontend scaffold implementation instructions based on audit review
+#### Prompt
+```
+please take this review and give instructions as the lead senior project manager to the senior engineer to implement this proposal according to the review's suggestions:
+
+T6-0 Frontend Scaffold Proposal — Audit Review
+Reviewer: Senior Project Manager / Lead QA / Senior Data Engineer
+Subject: T6-0 strategy review before any code is written or merged
+
+1. Executive Summary
+⚠️ APPROVE WITH CHANGES
+The proposal is directionally correct — React + Vite is the right minimal choice, the scope is genuinely infrastructure-only, and the decision to skip TypeScript and a test framework is sound MVP discipline. One issue requires a change before approval: Node 20 should not be installed inside the Python backend container. Everything else is either correct or acceptable at MVP scale.
+
+2. What Is Correct
+React + Vite is the right call. Zero config, fast, standard, no lock-in. Exactly what a thin UX layer over a backend pipeline should use.
+No TypeScript. Correct for MVP. TypeScript adds toolchain complexity (tsconfig, type definitions for external packages, IDE setup) that has no payoff at this scale. The component surface area for T6-1 and T6-2 is small enough that untyped JavaScript is the right call.
+No UI framework. The original T6-1 ticket spec says "No UI frameworks required — keep styling minimal." Respecting that constraint is correct. Introducing Tailwind, MUI, or any other framework during scaffold would be scope creep.
+No test framework scaffolded. T6-1 is manually tested per spec. Adding Jest or Vitest now adds toolchain config with nothing to run against. Defer until there's a reason.
+react-dropzone pre-installed at T6-0. This is correct. T6-1 has a hard dependency on it. Installing a known T6-1 dependency during scaffold is not over-building — it's avoiding a mid-ticket npm install that would need its own commit and review.
+Boilerplate removal (App.css, react.svg, vite.svg) is correct. Leaving Vite boilerplate in the repo creates noise and implies the project uses things it doesn't.
+npm run dev as manual start. Correct. Developers are primarily working on the backend. Auto-starting Vite on container launch adds port noise and slows startup for backend-only work sessions. Manual is the right MVP default.
+No frontend CI step added. Acceptable for MVP. There's nothing to test yet. The risk of a broken frontend build blocking backend CI doesn't exist if frontend has no CI step. Revisit in T6-2 when there's actually something to lint or build.
+
+3. Issues / Risks
+🔴 HIGH — Node 20 installed inside the Python backend container.
+This is the most significant concern in the proposal. The current container is a focused Python/uv environment. Installing Node 20 via NodeSource into it increases container size substantially (Node 20 + npm adds ~200-400MB to the image), increases rebuild time, and introduces a second runtime ecosystem into what should be a single-purpose build environment.
+The correct approach for a full-stack project with two separate codebases is two separate containers orchestrated via docker-compose.yml — one for the backend (Python/uv) and one for the frontend (Node). This is already partially implemented: the original docker-compose.yml from T1-1 already has a frontend service using node:20-slim behind a profiles: [frontend] flag. The proposal ignores this and instead stuffs Node into the backend container, which is the wrong direction.
+Merging Node into the Python container also means every future docker build for the backend — including CI — installs Node. That's unnecessary weight on a backend-only CI pipeline.
+🟡 MEDIUM — postCreateCommand runs npm install unconditionally.
+If the frontend/ directory is scaffolded but package.json doesn't exist yet at the time the container is created (e.g., on a fresh clone before T6-0 is merged), the npm install step will fail loudly and break container creation. The command needs a guard:
+bashcd /workspace/backend && uv sync --dev && [ -f /workspace/frontend/package.json ] && cd /workspace/frontend && npm install || true
+Or better: keep the backend and frontend container setup entirely separate.
+🟡 MEDIUM — Dockerfile change scope.
+The proposal updates the Dockerfile that builds the backend service. Adding Node to the backend Dockerfile couples the frontend toolchain to the backend image permanently. Any time the backend image is built (CI, production, deployment), Node is included for no reason. This is a maintainability and security surface area increase that should not be accepted at MVP.
+🟢 LOW — ESLint and Prettier VS Code extensions added to devcontainer.json.
+These are reasonable additions given frontend work is starting, but they're mildly premature — there's no ESLint or Prettier config in the repo yet. Adding the extensions without the config means VS Code will show warnings about missing config files. Either add minimal configs alongside the extensions, or defer the extensions to T6-1 when they'll actually be used.
+
+4. Required Changes Before Approval
+Change 1 (required) — Do not modify the backend Dockerfile to install Node.
+The frontend service in docker-compose.yml already exists using node:20-slim. Remove the profiles flag and let it run alongside the backend. The VS Code dev container attaches to the backend service; the frontend dev server runs in its own container. Developers access it at localhost:5173 the same way they access the backend at localhost:8000.
+The updated docker-compose.yml frontend service:
+yamlfrontend:
+  image: node:20-slim
+  volumes:
+    - .:/workspace
+  working_dir: /workspace/frontend
+  ports:
+    - "5173:5173"
+  command: sh -c "npm install && npm run dev -- --host"
+Remove the profiles: [frontend] line so it starts automatically with docker compose up.
+Change 2 (required) — Revert the Dockerfile to its current state.
+No Node in the backend image. The backend Dockerfile should remain Python-only.
+Change 3 (required) — Update postCreateCommand to backend-only.
+json"postCreateCommand": "cd /workspace/backend && uv sync --dev"
+Frontend deps are handled by the frontend container on startup. No npm install in the backend container's postCreate.
+
+5. Optional Improvements (Post-MVP)
+Proxy config in vite.config.js. In T6-2 when the frontend calls POST /upload, it will need to proxy API requests to localhost:8000 to avoid CORS issues during local development. Adding this to vite.config.js is a one-liner but belongs in T6-2 when the API integration is actually wired up, not T6-0.
+.eslintrc and .prettierrc. Correct tooling configs belong in the repo eventually, but they're a T6-1 concern when there's actual code to lint.
+Frontend CI. A npm run build step in GitHub Actions is the right eventual addition — it catches broken JSX before merge. Belongs in T6-2 or its own chore ticket, not here.
+
+6. Final Decision
+✅ APPROVE WITH CHANGES
+Three required changes, all structural:
+
+Remove Node from the backend Dockerfile
+Remove profiles from the frontend docker-compose service so it runs alongside the backend
+Revert postCreateCommand to backend-only
+
+Once those three changes are made, T6-0 is correctly scoped, minimal, and a clean foundation for T6-1. The technology choices (React + Vite, no TypeScript, no UI framework, react-dropzone pre-installed) are all sound MVP decisions and do not require changes.
+```
+
+- **Summary of Response:**
+    - Translated audit review into clear implementation directives for senior engineer
+    - Emphasized separation of backend (Python) and frontend (Node) via Docker Compose
+    - Identified three required structural fixes (Dockerfile, docker-compose, postCreateCommand)
+    - Reinforced MVP discipline (no TypeScript, no UI framework, no premature tooling)
+- **Impact:**
+    - Prevented improper container architecture and long-term technical debt
+    - Established clean separation of concerns between frontend and backend environments
+    - Ensured scalable, maintainable dev setup aligned with production practices
+    - Unblocked T6-0 approval and enabled progression to frontend implementation tickets
+---
+
+### Prompt ID: P-074
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Enforce frontend architecture separation and scaffold implementation (T6-0)
+#### Prompt
+```
+🧭 T6-0 Implementation Directive — Senior PM → Senior Engineer
+
+We are approved to proceed with T6-0, but only under strict adherence to the architectural corrections identified in the review.
+
+This is a course-correction, not a redesign.
+
+🎯 Objective
+
+Deliver a clean, minimal frontend scaffold that:
+
+enables T6-1 and T6-2
+introduces zero unnecessary backend coupling
+preserves the integrity of our Python-first pipeline architecture
+🚨 Non-Negotiable Changes (Must Be Implemented)
+1. ❌ Do NOT install Node in the backend container
+
+Explicit directive:
+
+Remove ALL Node installation steps from:
+Dockerfile
+.devcontainer/devcontainer.json
+any shell scripts
+
+Reason:
+
+Backend container must remain:
+
+Python + uv only
+
+No dual-runtime containers. No exceptions.
+
+2. ✅ Use existing frontend container (docker-compose)
+
+We are standardizing on a multi-container setup.
+
+Required change:
+
+Update docker-compose.yml:
+
+REMOVE:
+profiles:
+  - frontend
+KEEP / ENSURE:
+frontend:
+  image: node:20-slim
+  volumes:
+    - .:/workspace
+  working_dir: /workspace/frontend
+  ports:
+    - "5173:5173"
+  command: sh -c "npm install && npm run dev -- --host"
+Outcome:
+Frontend runs alongside backend automatically
+No manual profile activation required
+Clean separation of concerns maintained
+3. 🔁 Revert backend Dockerfile
+
+The backend Dockerfile must remain:
+
+Python-only
+unchanged from T1
+
+👉 If Node appears anywhere → remove it
+
+4. 🔁 Fix devcontainer postCreateCommand
+
+Replace with:
+
+"postCreateCommand": "cd /workspace/backend && uv sync --dev"
+DO NOT:
+run npm install here
+reference frontend at all
+
+👉 Frontend dependencies are handled inside the frontend container
+
+🧱 Frontend Scaffold (Approved Scope)
+
+Proceed with scaffold exactly as proposed, with no expansion:
+
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx
+│   └── components/
+Implementation Constraints
+✅ Include:
+React + Vite scaffold
+react-dropzone installed
+minimal App.jsx shell
+❌ Do NOT include:
+TypeScript
+Tailwind / MUI / Chakra
+test frameworks
+API logic
+state management libraries
+App.jsx (MVP shell)
+
+Keep exactly minimal:
+
+export default function App() {
+  return (
+    <main style={{ maxWidth: 640, margin: "3rem auto", padding: "0 1.5rem" }} />
+  )
+}
+⚙️ Dev Workflow (Final Decision)
+Frontend dev server:
+runs automatically via docker-compose
+
+accessible at:
+
+http://localhost:5173
+Backend:
+
+runs at:
+
+http://localhost:8000
+Devcontainer:
+attaches to backend container only
+frontend runs independently
+
+👉 This separation is intentional and correct
+
+🧪 Acceptance Criteria (T6-0)
+
+Before marking complete, verify:
+
+Environment
+docker compose up starts:
+backend (8000)
+frontend (5173)
+Frontend
+Vite app loads at localhost:5173
+No errors in console
+App renders empty shell
+Backend
+unaffected
+tests still pass (uv run pytest)
+⚠️ Guardrails
+
+If any of the following occur, STOP and fix:
+
+Node appears in backend container
+Dockerfile modified beyond Python scope
+devcontainer references frontend setup
+frontend cannot run independently
+backend CI impacted
+📦 Commit
+chore: scaffold React + Vite frontend with separate container (T6-0)
+🧠 Final Direction
+
+This is about protecting the architecture you’ve built.
+
+You now have:
+
+a production-quality data pipeline
+and you're layering a thin UI on top
+
+We are not turning this into a full-stack monolith.
+
+✅ Next Step
+
+Once complete and verified:
+
+→ Move directly to T6-1 (Drag & Drop Upload Component)
+
+If anything feels like “this might be easier if we just…”
+→ that’s usually where architecture starts degrading.
+
+Stay disciplined.
+```
+
+- **Summary of Response:**
+    - Enforced strict separation between backend (Python-only) and frontend (Node container)
+    - Defined exact docker-compose, devcontainer, and Dockerfile corrections
+    - Scoped minimal React + Vite scaffold with no additional complexity
+    - Established clear acceptance criteria and architectural guardrails
+- **Impact:**
+    - Prevented architectural drift into a monolithic or dual-runtime backend
+    - Standardized multi-container development workflow
+    - Enabled safe progression to frontend features (T6-1, T6-2)
+    - Reinforced long-term maintainability and separation of concerns
+---
+
+### Prompt ID: P-075
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate Claude implementation prompt for React drag-and-drop upload component (T6-1)
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+in this epic: 
+T6 - Frontend Upload Interface: 
+we have these tickets: 
+T6-1 - Drag-drop upload component 
+T6-2 - Processing state + results display 
+let's start with T6-1: 
+Description 
+React component with drag-drop zone (React Dropzone). 
+Validates .xlsx extension client-side. 
+Shows file name and size after selection. 
+
+Acceptance criteria 
+Non-xlsx files rejected with UI message 
+Submit button disabled until a valid .xlsx file is selected 
+File name and size visible after selection 
+
+Test plan 
+Manual: drag valid xlsx — confirm name and size display and submit enables 
+Drag csv — confirm rejection message. 
+Attempt submit with no file selected — confirm button remains disabled.
+```
+
+- **Summary of Response:**
+    - Generated a structured “Claude prompt” instructing implementation of a React drag-and-drop upload component using React Dropzone
+    - Emphasized MVP-first, test-driven development approach aligned with the project plan
+    - Included explicit acceptance criteria translation into implementation requirements (file validation, UI states, disabled submit behavior)
+    - Reinforced separation of concerns between UI state handling and validation logic
+- **Impact:**
+    - Converted a high-level ticket into an execution-ready developer prompt for Claude
+    - Established clear frontend behavior rules for file ingestion UX
+    - Created a reusable pattern for future T6 epic frontend implementation tickets
+---
+
+### Prompt ID: P-076
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** 
+#### Prompt
+```
+🎯 Claude Implementation Prompt — T6-1 Drag & Drop Upload (MVP Frontend)
+
+You are acting as a Lead Data Engineer with frontend experience implementing a minimal, production-ready React component for the Donor Bureau Pipeline.
+
+Your goal is to deliver:
+
+T6-1 — Drag-and-Drop Upload Component (MVP UI Layer)
+
+This is the first frontend surface of a data pipeline that converts Excel workbooks into clean CSV outputs.
+
+🧠 Context You Must Respect
+
+This is a backend-first, test-driven MVP system.
+
+The frontend is:
+
+intentionally lightweight
+not responsible for business logic
+not responsible for validation beyond basic UX safeguards
+
+The backend already enforces:
+
+file validation
+schema validation
+data correctness
+
+👉 The frontend should ONLY:
+
+prevent obvious bad inputs
+improve user experience
+pass the file to /upload
+🧩 Scope of This Ticket
+
+You are building a single React component:
+
+Component Responsibility
+Accept a file via drag-and-drop OR click-to-select
+Validate .xlsx extension client-side
+Display file name + size
+Enable submit only when valid file selected
+🛠️ Technical Requirements
+Stack
+React (functional components)
+Use React Dropzone
+No UI frameworks required (keep styling minimal)
+🎯 Functional Requirements
+1. Drag-and-Drop Zone
+User can:
+drag file into drop area
+click to open file picker
+Only accept .xlsx files
+2. Client-Side Validation (Lightweight)
+If file is NOT .xlsx:
+reject immediately
+
+display clear error message:
+
+"Only .xlsx files are supported"
+
+⚠️ Do NOT:
+
+inspect file contents
+attempt parsing
+duplicate backend validation logic
+3. File Display
+
+Once valid file is selected:
+
+Show:
+file name
+file size (KB or MB, human readable)
+
+Example:
+
+File: donations_april.xlsx (1.2 MB)
+4. Submit Button Behavior
+Disabled state:
+no file selected
+invalid file selected
+Enabled state:
+valid .xlsx file selected
+5. State Management
+
+Component should track:
+
+selected file
+validation error (if any)
+
+Keep state minimal and local.
+
+🧪 MVP Testing Expectations
+
+This ticket is manual-test driven (no frontend test framework required yet).
+
+You must ensure:
+
+Scenario 1 — Valid File
+Drag .xlsx file
+✅ file name + size displayed
+✅ submit button enabled
+Scenario 2 — Invalid File
+Drag .csv or .txt
+❌ error message displayed
+❌ submit button remains disabled
+Scenario 3 — No File
+Attempt submit with no file
+❌ submit disabled
+🧱 Implementation Constraints
+DO:
+Keep component small and focused
+Use clean state handling
+Keep logic readable and obvious
+DO NOT:
+call backend yet (T6-2 handles that)
+implement loading states
+implement results display
+introduce global state management
+over-engineer styling
+🧩 Suggested Component Structure
+
+You may implement something like:
+
+UploadDropzone.jsx
+  - useDropzone()
+  - local state: file, error
+  - render:
+      drop area
+      file info (if exists)
+      error message (if exists)
+      submit button (disabled/enabled)
+🚨 Red Line Rules
+
+Fail the implementation if:
+
+accepts non-.xlsx files
+submit button enabled without valid file
+file info not shown after selection
+validation logic is duplicated from backend
+component tries to process file contents
+📦 Deliverables
+React component (clean, readable)
+Minimal styling (clear UX, not pretty UI)
+Inline comments explaining:
+validation decisions
+why logic is intentionally minimal
+🧠 MVP Philosophy Reminder
+
+This is NOT a polished product UI.
+
+This is:
+
+a thin UX layer over a backend data pipeline
+
+Optimize for:
+
+clarity
+correctness
+simplicity
+✅ Definition of Done
+All acceptance criteria satisfied
+Manual test scenarios pass
+Component integrates cleanly into /frontend workspace
+Ready for T6-2 (API integration + results display)
+
+If anything is ambiguous:
+➡️ choose simplest implementation that satisfies acceptance criteria
+```
+
+- **Summary of Response:**
+
+- **Impact:**
+---
