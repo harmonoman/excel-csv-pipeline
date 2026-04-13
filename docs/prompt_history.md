@@ -11993,3 +11993,282 @@ Treat it like production software — not a demo.
     - Created a formal QA gate for the first production-style integration point in the system
     - Standardized how Claude should assess frontend upload reliability and API contract adherence
     - Enforced MVP discipline and prevented premature architectural complexity during review phase
+---
+
+### Prompt ID: P-081
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** QA checkpoint review prompt generation for completed T5/T6 implementation
+#### Prompt
+```
+Ok now that we've completed up to T5 - Output generation and T6 - Frontend Upload Interface - please generate a prompt to Claude to do a checkpoint review of all the code as it stands and also take into consideration the input_contract, fixtures, testing, MVP as a lead senior QA / Data Engineer
+```
+
+- **Summary of Response:**
+    - Generated a structured QA checkpoint review prompt intended for Claude
+    - Focused on validating end-to-end implementation across T5 output generation and T6 frontend upload interface
+    - Emphasized alignment with input contracts, test fixtures, MVP scope, and overall testing strategy
+- **Impact:**
+    - Established a formal QA review gate for the current build state
+    - Reinforced contract-driven development and test coverage validation
+    - Positioned the project for production-readiness assessment and gap identification
+---
+
+### Prompt ID: P-082
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** Full system checkpoint QA review of T5 + T6 pipeline
+#### Prompt
+```
+🧠 Claude Code Prompt — Full System Checkpoint Review (T5 + T6 Complete)
+
+You are acting as a Senior Principal Data Engineer + Lead QA Architect.
+
+Your task is to perform a full-system checkpoint review of the Donor Bureau project after completion of:
+
+E1–E5 Backend Pipeline
+T6 Frontend Upload Interface (T6-0 → T6-2)
+
+This is a system-level audit before proceeding to any future work.
+
+🎯 Review Objective
+
+You are validating whether the system is:
+
+Architecturally sound end-to-end
+Aligned with the input_contract.md
+Properly validated against assumptions and fixtures
+Correctly integrated across frontend → backend → output generation
+MVP-compliant (no overengineering, no premature scaling)
+Safe to extend into production-hardening phases
+📦 Codebase Context
+
+You are reviewing the entire repository, including:
+
+Backend Pipeline (T1–T5)
+Upload endpoint
+Parser (multi-sheet + header detection)
+Mapping engine
+Normalization
+Validators (null, type, value)
+Row splitter (clean/rejected)
+Schema enforcement
+Output generation (CSV writers)
+Deterministic file naming
+Logging
+Error handling
+Frontend (T6)
+Drag & drop upload component
+File validation
+Upload API integration
+Loading state
+Results display
+Download buttons
+📘 Source of Truth Documents
+
+You MUST evaluate against:
+
+1. /docs/input_contract.md
+File structure rules
+Header detection rules
+Column alias mapping
+Data assumptions
+Client derivation rules
+2. Fixture expectations (T7-1 pending, but partially assumed)
+Multi-sheet workbooks
+Metadata rows before headers
+Header offset variability
+Invalid / missing headers
+ZIP edge cases
+Multiple template formats
+3. MVP constraints
+No overengineering
+No premature async pipelines
+No distributed systems assumptions
+Synchronous processing only
+Local file storage only
+Deterministic outputs required
+🔍 REQUIRED AUDIT AREAS
+1. End-to-End Data Flow Integrity (CRITICAL)
+
+Trace full lifecycle:
+
+Upload (.xlsx)
+→ Parse sheets
+→ Detect headers
+→ Map columns
+→ Normalize data
+→ Validate rows
+→ Split clean/rejected
+→ Enforce schema
+→ Write CSV outputs
+→ Return API response
+→ Frontend renders results
+→ Downloads files
+
+Check:
+
+Is data consistent across all stages?
+Any silent transformations or data loss?
+Any mismatch between stages?
+2. Contract Compliance (CRITICAL)
+
+Compare system behavior to input_contract.md:
+
+Check for:
+
+Header detection correctness (first N rows, ≥2 aliases rule)
+Metadata row skipping
+Sheet → Client mapping correctness
+Column alias completeness vs contract
+Case-insensitive mapping enforcement
+Required field handling consistency
+
+Flag:
+
+Any drift between contract and implementation
+Any undocumented behavior that became "implicit truth"
+3. Schema & Data Integrity
+
+Verify:
+
+clean_df strictly matches schema at output stage
+no extra columns leak into clean output
+rejected_df always includes rejection_reason
+
+row counts always consistent:
+
+clean + rejected = input rows
+
+Check for:
+
+column drift between stages
+accidental mutation across pipeline steps
+inconsistent typing between normalization and output
+4. Validation Layer Correctness (T4)
+
+Evaluate:
+
+null / missing field validation correctness
+type validation correctness:
+DonationAmount > 0
+valid state codes
+ZIP preservation
+date parsing robustness
+row splitter correctness:
+no leakage between clean/rejected
+correct rejection aggregation
+5. Output Layer Correctness (T5)
+
+Check:
+
+deterministic file naming
+schema enforcement strictness
+CSV writers:
+UTF-8 encoding
+no index column
+consistent ordering
+download endpoint correctness
+file persistence assumptions
+6. Frontend ↔ Backend Integration (T6)
+
+Verify:
+
+correct FormData upload
+correct field key ("file")
+loading state correctness
+error propagation clarity
+summary numbers match backend
+download links functional
+no frontend assumptions beyond API contract
+7. Error Handling & System Resilience (T4-4)
+
+Check:
+
+structured error handling across pipeline
+correct HTTP codes:
+400 for invalid input
+500 for system failure
+200 for validation failures
+no stack traces exposed to frontend
+correct logging per stage
+8. Fixture Coverage Gap Analysis
+
+Even if T7-1 is incomplete, identify:
+
+what behaviors are NOT yet validated by fixtures
+missing real-world patterns:
+metadata-heavy sheets
+malformed headers
+multi-template workbooks
+edge-case ZIP/date formats
+9. MVP Discipline Audit (VERY IMPORTANT)
+
+Flag any violations:
+
+premature async processing
+unnecessary abstractions
+over-engineered architecture
+unnecessary libraries
+future-proofing that adds complexity
+10. Risk Assessment
+
+Identify:
+
+silent data loss risks
+contract drift risks
+validation gaps
+frontend/backend mismatch risks
+scaling assumptions that are not MVP-safe
+🧪 REQUIRED OUTPUT FORMAT
+1. 🧠 Executive Summary
+READY
+READY WITH FIXES
+NOT READY
+2. 🔴 Critical System Issues
+
+(system-breaking or correctness issues)
+
+3. 🟡 Medium Risks
+
+(potential data integrity or UX issues)
+
+4. 🟢 Minor Issues
+
+(cleanup / readability / consistency)
+
+5. 📉 Contract Drift Report
+
+explicit mismatches between:
+
+input_contract.md
+implementation
+observed behavior
+6. 🧪 Test & Fixture Coverage Gaps
+
+what is not yet validated
+
+7. 🔧 Required Fixes (if any)
+
+actionable, precise
+
+8. 🧠 Final Verdict
+
+clear go / no-go for next phase
+
+🧠 Engineering Principle
+
+This is a system of record for data transformation, not a demo app.
+
+Every row must be traceable, deterministic, and contract-compliant.
+```
+
+- **Summary of Response:**
+    - Claude performs full end-to-end system audit across backend pipeline and frontend integration
+    - Evaluates contract compliance, schema integrity, validation correctness, and MVP constraints
+    - Produces structured QA report including critical issues, drift analysis, fixture gaps, and final go/no-go verdict
+- **Impact:**
+    - Establishes formal production-readiness checkpoint gate before further development
+    - Enforces strict contract-driven validation across full stack
+    - Surfaces architectural risks, data integrity issues, and integration gaps prior to next phase
+---
