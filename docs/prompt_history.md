@@ -13133,3 +13133,264 @@ Be ruthless.
     - Established a production-grade testing standard for pipeline reliability
     - Ensured integration tests reflect real-world failure scenarios and data integrity risks
     - Strengthened confidence in data ingestion correctness before warehouse entry
+---
+
+### Prompt ID: P-088
+- **Author:** Mark
+- **Target:** ChatGPT
+- **Purpose:** Generate implementation prompt for edge-case integration test coverage in MVP pipeline
+#### Prompt
+```
+From the role of a senior lead project manager, please generate a prompt for Claude to implement this ticket as a lead data engineer while sticking tightly to our MVP test driven product plan: 
+
+T7-3 - Edge case coverage: 
+# Description 
+Implement explicit integration tests covering key edge-case scenarios: 
+all rows rejected, all rows valid, single-row input, large file processing, and sheets containing only a header row. Ensure correctness, stability, and observability of pipeline behavior under these conditions. 
+
+# Acceptance Criteria 
+- All-reject case: 
+- clean_donations.csv contains only header row 
+- rejected_rows.csv contains all input rows with valid rejection reasons 
+- All-clean case: 
+- rejected_rows.csv contains only header row 
+- clean_donations.csv contains all input rows 
+- Single-row file: 
+- Row is processed correctly (either clean or rejected based on validity) 
+- Header-only sheet: 
+- No data rows processed 
+- Both output files contain only headers 
+- Large file (e.g., 10k rows): 
+- Pipeline completes successfully without errors 
+- Row counts remain accurate (clean + rejected = total) 
+- Processing time is captured and logged for observability (non-blocking)
+```
+
+- **Summary of Response:**
+    - Produced a structured Claude-facing implementation prompt tailored for a lead data engineer
+    - Translated ticket requirements into explicit MVP-focused test scenarios
+    - Emphasized integration test coverage across edge cases including rejection, validation, and scalability conditions
+- **Impact:**
+    - Standardized how edge-case requirements are communicated for downstream implementation
+    - Strengthened test-driven development alignment across pipeline behavior
+    - Improved clarity of expected system outputs for both clean and rejected data flows
+---
+
+### Prompt ID: P-089
+- **Author:** ChatGPT
+- **Target:** Claude
+- **Purpose:** QA audit of edge-case integration tests for Excel-to-CSV ingestion pipeline
+#### Prompt
+```
+🧠 Claude Code Prompt — T7-3 QA / Senior Edge Case Test Review
+
+You are acting as a Senior QA Architect + Lead Data Pipeline Reliability Engineer.
+
+Your task is to perform a strict production-grade audit of:
+
+T7-3 — Edge Case Integration Tests
+
+These tests represent the system’s resilience under real-world failure conditions.
+
+If these tests are weak, the system is not production-ready.
+
+🎯 Review Objectives
+
+Evaluate whether the implementation:
+
+Properly validates edge-case behavior of the full pipeline
+Uses real fixtures (no mocks or stubs)
+Executes through the entire API-driven system
+Correctly asserts data correctness, schema integrity, and determinism
+Accurately simulates production failure scenarios
+📦 Scope of Review
+
+You must review:
+
+backend/tests/integration/test_edge_cases.py
+
+And any referenced:
+
+fixture files in backend/tests/fixtures/
+shared test utilities used for validation
+any helper functions introduced for edge-case setup
+📘 SOURCE OF TRUTH
+
+Evaluate strictly against:
+
+1. /docs/input_contract.md
+header detection rules
+metadata handling
+column mapping expectations
+validation rules (ZIP, date, amount, state)
+multi-sheet behavior
+2. Pipeline Guarantees (T1–T5)
+deterministic processing
+schema enforcement (T5-6)
+validation correctness (T4)
+clean vs rejected separation
+🔍 REQUIRED AUDIT AREAS
+1. True Edge Case Coverage (CRITICAL)
+
+Confirm that ALL required scenarios are implemented:
+
+Required tests:
+all-rejected dataset
+all-clean dataset
+single-row dataset
+header-only sheet dataset
+large dataset (10k+ rows)
+
+🚫 FAIL if any are missing or partially implemented
+
+2. Full End-to-End Execution (CRITICAL)
+
+Verify:
+
+Uses FastAPI test client (httpx.AsyncClient)
+Uses real HTTP endpoints:
+POST /upload
+GET /download/{filename}
+
+🚫 FAIL if:
+
+any pipeline stage is mocked
+internal functions are called directly
+filesystem is accessed directly instead of API
+3. Correct Assertions (Behavioral vs Implementation)
+
+Ensure tests validate:
+
+MUST:
+row counts correctness
+clean vs rejected classification
+schema correctness for both outputs
+rejection_reason presence for all rejected rows
+header-only behavior correctness
+🚫 DO NOT ACCEPT:
+tests that only validate HTTP status codes
+tests that check filenames instead of content
+tests that do not inspect CSV content
+4. Determinism Validation (CRITICAL)
+
+Check:
+
+same input fixture produces identical outputs
+repeated runs do NOT change:
+CSV content
+row classification
+
+🚫 FAIL if determinism is not explicitly tested
+
+5. Fixture Quality & Coverage
+
+Evaluate:
+
+Are fixtures realistic (not synthetic-only)?
+Do they reflect:
+messy real-world Excel inputs?
+malformed or edge-case structures?
+Are fixtures reused properly from T7-1?
+
+Flag missing or weak fixtures.
+
+6. Schema Validation Strength
+
+Confirm:
+
+Clean CSV:
+exact schema match
+no extra columns
+correct column order
+Rejected CSV:
+rejection_reason exists
+ALL rows include non-empty rejection_reason
+7. Large Dataset Behavior
+
+Check:
+
+pipeline completes successfully
+no timeouts or memory issues simulated
+row count integrity maintained
+
+🚫 FAIL if only "status 200" is asserted without validation of results
+
+8. Isolation & Stability
+
+Ensure:
+
+tests are independent
+no shared state between test cases
+no reliance on execution order
+no filesystem leakage between tests
+9. MVP Discipline Check
+
+Flag:
+
+over-engineered test abstractions
+unnecessary helper layers
+non-essential assertions
+tests drifting into system optimization rather than validation
+🧪 REQUIRED OUTPUT FORMAT
+1. 🧠 Executive Summary
+✅ READY
+⚠️ READY WITH FIXES
+❌ NOT READY
+2. 🔴 Critical Issues
+missing edge case coverage
+weak or incorrect assertions
+lack of determinism validation
+missing true end-to-end execution
+3. 🟡 Coverage Gaps
+missing scenarios
+incomplete fixture coverage
+weak large dataset validation
+4. 🟢 Minor Issues
+naming improvements
+readability
+structural improvements
+5. 📉 Contract / Behavior Drift
+
+Any mismatch between:
+
+input_contract.md
+pipeline behavior
+test expectations
+6. 🧪 Test Strength Evaluation
+
+Answer explicitly:
+
+Would these tests catch real production failures in Excel uploads?
+
+Explain clearly.
+
+7. 🔧 Required Fixes
+
+Concrete changes required before approval
+
+8. 🧠 Final Verdict
+APPROVE
+APPROVE WITH FIXES
+REJECT
+🧠 ENGINEERING PRINCIPLE
+
+These tests define whether your system survives:
+
+malformed Excel files, massive datasets, and real-world client chaos
+
+If they are weak, production will fail silently.
+
+Be strict. Be skeptical. Assume nothing.
+```
+
+- **Summary of Response:**
+    - Defined a strict QA audit framework for edge-case integration tests in an Excel-to-CSV pipeline
+    - Enforced full end-to-end validation via real API endpoints with no mocks or internal calls
+    - Required deep assertions on schema correctness, determinism, fixture realism, and large dataset behavior
+    - Introduced production-grade pass/fail criteria for test coverage completeness and reliability
+- **Impact:**
+    - Established a high-rigor QA gate for pipeline resilience validation
+    - Ensured tests validate true production behavior rather than superficial API success
+    - Strengthened reliability expectations for edge-case handling and data integrity
+    - Reduced risk of silent production failures by enforcing determinism and full system execution checks
+---
